@@ -1,0 +1,20 @@
+- hosts: all
+
+  tasks:
+
+  - name: integration - make slow
+    make:
+      chdir=/home/vagrant/kpatch/test/integration
+      target=cached
+
+  - name: integration - fetch test.log
+    fetch:
+      src=/home/vagrant/kpatch/test/integration/test.log
+      dest={{ inventory_hostname }}/
+      flat=yes
+
+  - name: integration - fetch build.log
+    fetch:
+      src=/home/vagrant/.kpatch/build.log
+      dest={{ inventory_hostname }}/
+      flat=yes

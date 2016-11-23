@@ -1,0 +1,8 @@
+FILE=$(mktemp)
+
+curl https://api.github.com/repos/dynup/kpatch/pulls -o $FILE &>/dev/null
+URL=$(jq ".[] | select(.number==$1) .head.repo.clone_url" $FILE)
+REF=$(jq ".[] | select(.number==$1) .head.ref" $FILE)
+rm $FILE
+
+echo "repo=$URL version=$REF"

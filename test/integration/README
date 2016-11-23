@@ -1,0 +1,21 @@
+Patch rebasing
+==============
+
+* Run from the desired target OS
+
+
+* Download the kernel source by running:
+
+  ./download_kernel
+
+
+* Rebase patches against the downloaded kernel, these are placed inside an
+  os_ver/ directory:
+
+  ./rebase_patches [patch1 ... patchN]
+
+
+For example:
+
+  mv fedora_25{,.old}
+  ./download_kernel && ./rebase_patches fedora_25.old/*.patch

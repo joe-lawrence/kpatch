@@ -608,6 +608,4 @@ KPATCH_BUILD="$SRCDIR" KPATCH_NAME="$PATCHNAME" KBUILD_EXTRA_SYMBOLS="$KBUILD_EX
 
 cp -f "$TEMPDIR/patch/kpatch-$PATCHNAME.ko" "$BASE" || die
 
-[[ "$DEBUG" -eq 0 ]] && rm -f "$LOGFILE"
-
 echo "SUCCESS"

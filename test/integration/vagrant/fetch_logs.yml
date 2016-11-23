@@ -1,0 +1,15 @@
+- hosts: all
+
+  tasks:
+
+  - name: fetch - test.log
+    fetch:
+      src=/home/vagrant/kpatch/test/integration/test.log
+      dest={{ inventory_hostname }}/
+      flat=yes
+
+  - name: fetch - build.log
+    fetch:
+      src=/home/vagrant/.kpatch/build.log
+      dest={{ inventory_hostname }}/
+      flat=yes

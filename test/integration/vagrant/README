@@ -1,0 +1,86 @@
+Setting up vagrant on Fedora 25
+===============================
+
+Install the vagrant and vagrant-libvirt plugin (Installed size: 136 M), then
+enable and start these services:
+
+  dnf install vagrant vagrant-libvirt
+  systemctl enable libvirtd
+  systemctl enable virtlogd
+  systemctl start libvirtd
+  systemctl start virtlogd
+
+
+From this directory, bring up and provision the VMs:
+
+  vagrant up
+
+
+This process will download the base .box images and then install kpatch
+prerequisites.  Depending on download speeds, this can take ~15 minutes
+or longer.
+
+Vagrant will setup three VMs: fedora 25, centos 7, and ubuntu 14.04.
+
+
+Testing the VMs
+===============
+
+Install ansible so we can run playbook files against the VMs:
+
+  dnf install ansible
+
+
+Then add the VM fingerprints to known_hosts (why doesn't vagrant do this
+by default?)
+
+  ssh-keyscan -t rsa $(vagrant ssh-config | \
+    awk '/HostName/{print $NF}') >> ~/.ssh/known_hosts
+
+
+Then from this directory, execute the build_kpatch playbook:
+
+  ansible-playbook -i ./vagrant.py build_kpatch.yml
+
+
+The ansible playbook will take a few moments to run, with output like:
+
+  PLAY [all] ****************************************************************
+
+  TASK [setup] **************************************************************
+  ok: [centos]
+  ok: [fedora]
+  ok: [ubuntu]
+
+  TASK [Git clone] **********************************************************
+  changed: [fedora]
+  changed: [centos]
+  changed: [ubuntu]
+
+  TASK [make clean] *********************************************************
+  changed: [ubuntu]
+  changed: [centos]
+  changed: [fedora]
+
+  TASK [make all] ***********************************************************
+  changed: [fedora]
+  changed: [ubuntu]
+  changed: [centos]
+
+  TASK [make install] *******************************************************
+  changed: [ubuntu]
+  changed: [fedora]
+  changed: [centos]
+
+  PLAY RECAP ****************************************************************
+  centos                     : ok=5    changed=4    unreachable=0    failed=0
+  fedora                     : ok=5    changed=4    unreachable=0    failed=0
+  ubuntu                     : ok=5    changed=4    unreachable=0    failed=0
+
+
+The default git repository is https://github.com/dynup/kpatch and
+version is HEAD.  To build a different tree / branch, you can override
+the defaults like so:
+
+  ansible-playbook -i ./vagrant.py build_kpatch.yml \
+    -e 'repo=https://github.com/joe-lawrence/kpatch version=617_KASLR_support'

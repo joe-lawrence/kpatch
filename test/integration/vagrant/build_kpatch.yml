@@ -1,0 +1,25 @@
+- hosts: all
+
+  tasks:
+
+    - name: kpatch - git clone
+    git:
+      repo={{ repo|default('https://github.com/dynup/kpatch') }}
+      dest=/home/vagrant/kpatch
+      version={{ version|default('HEAD') }}
+
+  - name: kpatch - make clean
+    make:
+      chdir=/home/vagrant/kpatch
+      target=clean
+
+  - name: kpatch - make all
+    make:
+      chdir=/home/vagrant/kpatch
+      target=all
+
+  - name: kpatch - make install
+    make:
+      chdir=/home/vagrant/kpatch
+      target=install
+    become: yes

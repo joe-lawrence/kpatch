@@ -2277,7 +2277,12 @@ void kpatch_rebuild_rela_section_data(struct section *sec)
 	list_for_each_entry(rela, &sec->relas, list) {
 		relas[index].r_offset = rela->offset;
 		relas[index].r_addend = rela->addend;
-		relas[index].r_info = GELF_R_INFO(rela->sym->index, rela->type);
+		if (rela->sym) {
+			relas[index].r_info = GELF_R_INFO(rela->sym->index, rela->type);
+		} else {
+			log_debug("rela(%p)->sym = 0 !!!\n", rela);
+			relas[index].r_info = 0;
+		}
 		index++;
 	}
 
