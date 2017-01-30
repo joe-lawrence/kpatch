@@ -6,7 +6,11 @@ TOOLCHAINCMD="$1"
 shift
 
 if [[ -z "$KPATCH_GCC_TEMPDIR" ]]; then
-    exec "$TOOLCHAINCMD" "$@"
+	# RHEL6: FIXME: -ffunction-sections and -pg are incompatible w/ ea. other
+	# When used together, -ffunction-sections gets dropped.
+	# Drop -pg for now...
+	# Also, ${var%-pg} breaks exec cmd, so sub with bogus option for now..
+	exec "$TOOLCHAINCMD" "${@/%-pg/-Wno-error=comment}"
 fi
 
 declare -a args=("$@")
@@ -15,7 +19,8 @@ if [[ "$TOOLCHAINCMD" = "gcc" ]] ; then
 	while [ "$#" -gt 0 ]; do
 		if [ "$1" = "-o" ]; then
 			obj=$2
-			[[ $2 = */.tmp_*.o ]] && obj=${2/.tmp_/}
+			[[ ! $2 = */.tmp_mc_*.o ]] && [[ $2 = */.tmp_*.o ]] && obj=${2/.tmp_/}
+			# RHEL6: FIXME: Figure out .tmp_mc_*.o
 			case "$obj" in
 				*.mod.o|\
 				*built-in.o|\
@@ -32,6 +37,7 @@ if [[ "$TOOLCHAINCMD" = "gcc" ]] ; then
 				arch/x86/vdso/*|\
 				arch/x86/entry/vdso/*|\
 				drivers/firmware/efi/libstub/*|\
+				*.tmp_mc*.o|\
 				.*.o)
 					break
 					;;
@@ -53,7 +59,8 @@ elif [[ "$TOOLCHAINCMD" = "ld" ]] ; then
 		if [ "$1" = "-o" ]; then
 			obj=$2
 			case "$obj" in
-				*.ko)
+				# RHEL6: FIXME: Modules are linked to .ko.unsigned file first..
+				*.ko.unsigned)
 					mkdir -p "$KPATCH_GCC_TEMPDIR/module/$(dirname $obj)"
 					cp -f "$obj" "$KPATCH_GCC_TEMPDIR/module/$obj"
 					break
@@ -71,4 +78,4 @@ elif [[ "$TOOLCHAINCMD" = "ld" ]] ; then
 	done
 fi
 
-exec "$TOOLCHAINCMD" "${args[@]}"
+exec "$TOOLCHAINCMD" "${args[@]/%-pg/-Wno-error=comment}"

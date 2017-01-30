@@ -1,14 +1,19 @@
-__kpatch_funcs = ADDR(.kpatch.funcs);
-__kpatch_funcs_end = ADDR(.kpatch.funcs) + SIZEOF(.kpatch.funcs);
-
 #ifdef __KPATCH_MODULE__
-__kpatch_dynrelas = ADDR(.kpatch.dynrelas);
-__kpatch_dynrelas_end = ADDR(.kpatch.dynrelas) + SIZEOF(.kpatch.dynrelas);
 __kpatch_checksum = ADDR(.kpatch.checksum);
 #endif
 
 SECTIONS
 {
+  .kpatch.funcs : {
+    __kpatch_funcs = . ;
+    *(.kpatch.funcs)
+    __kpatch_funcs_end = . ;
+  }
+  .kpatch.dynrelas : {
+    __kpatch_dynrelas = . ;
+    *(.kpatch.dynrelas)
+    __kpatch_dynrelas_end = . ;
+  }
   .kpatch.hooks.load : {
     __kpatch_hooks_load = . ;
     *(.kpatch.hooks.load)

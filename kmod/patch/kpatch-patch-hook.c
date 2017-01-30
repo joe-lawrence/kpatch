@@ -26,10 +26,6 @@
 #include "kpatch.h"
 #include "kpatch-patch.h"
 
-static bool replace;
-module_param(replace, bool, S_IRUGO);
-MODULE_PARM_DESC(replace, "replace all previously loaded patch modules");
-
 extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
 extern struct kpatch_patch_dynrela __kpatch_dynrelas[], __kpatch_dynrelas_end[];
 extern struct kpatch_patch_hook __kpatch_hooks_load[], __kpatch_hooks_load_end[];
@@ -68,9 +64,7 @@ static ssize_t patch_enabled_store(struct kobject *kobj,
 	val = !!val;
 
 	if (val)
-		ret = kpatch_register(&kpmod, replace);
-	else
-		ret = kpatch_unregister(&kpmod);
+		ret = kpatch_register(&kpmod);
 
 	if (ret)
 		return ret;
@@ -387,18 +381,16 @@ static int __init patch_init(void)
 	if (ret)
 		goto err_objects;
 
-	ret = kpatch_register(&kpmod, replace);
+	ret = kpatch_register(&kpmod);
 	if (ret)
 		goto err_objects;
 
 	ret = sysfs_create_group(patch_kobj, &patch_attr_group);
 	if (ret)
-		goto err_sysfs;
+		goto err_objects;
 
 	return 0;
 
-err_sysfs:
-	kpatch_unregister(&kpmod);
 err_objects:
 	patch_free_objects();
 	kobject_put(patch_funcs_kobj);

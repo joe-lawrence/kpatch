@@ -40,6 +40,7 @@ struct kpatch_func {
 	unsigned long old_size;
 	unsigned long sympos;
 	const char *name;
+	char oldinstr[5];
 	struct list_head list;
 	int force;
 
@@ -90,8 +91,7 @@ struct kpatch_module {
 
 extern struct kobject *kpatch_patches_kobj;
 
-extern int kpatch_register(struct kpatch_module *kpmod, bool replace);
-extern int kpatch_unregister(struct kpatch_module *kpmod);
+extern int kpatch_register(struct kpatch_module *kpmod);
 
 extern void *kpatch_shadow_alloc(void *obj, char *var, size_t size, gfp_t gfp);
 extern void kpatch_shadow_free(void *obj, char *var);

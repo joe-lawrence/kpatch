@@ -161,12 +161,12 @@ gcc_version_check() {
 		return 1
 	fi
 
-	# ensure gcc version is >= 4.8
-	gccver=$(echo $gccver |cut -d'.' -f1,2)
-	if [[ $gccver < 4.8 ]]; then
-		warn "gcc >= 4.8 required"
-		return 1
-	fi
+# RHEL6: FIXME: gcc version is 4.4.7...
+#	gccver=$(echo $gccver |cut -d'.' -f1,2)
+#	if [[ $gccver < 4.8 ]]; then
+#		warn "gcc >= 4.8 required"
+#		return 1
+#	fi
 
 	return
 }
@@ -216,6 +216,7 @@ find_kobj() {
 		[[ -n $PARENT ]] && DEEP_FIND=0
 		if [[ -z $PARENT ]]; then
 			[[ $KOBJFILE = *.ko ]] && return
+			[[ $KOBJFILE = *.ko.unsigned ]] && return
 			case $KOBJFILE in
 				*/built-in.o|\
 				arch/x86/lib/lib.a|\
@@ -355,8 +356,12 @@ fi
 # kernel's 56-byte module name array.
 PATCHNAME=$(echo ${PATCHNAME//[^a-zA-Z0-9_-]/-} |cut -c 1-48)
 
-source /etc/os-release
-DISTRO=$ID
+# RHEL6: FIXME: There doesn't seem to be a file equivalent to os-release on
+# RHEL6, which provides all those env variables...
+# Manually set distro to rhel for now..
+#source /etc/os-release
+DISTRO=rhel
+
 if [[ $DISTRO = fedora ]] || [[ $DISTRO = rhel ]] || [[ $DISTRO = ol ]] || [[ $DISTRO = centos ]]; then
 	[[ -z $VMLINUX ]] && VMLINUX=/usr/lib/debug/lib/modules/$ARCHVERSION/vmlinux
 	[[ -e "$VMLINUX" ]] || die "kernel-debuginfo-$ARCHVERSION not installed"
@@ -513,33 +518,44 @@ cp -LR "$DATADIR/patch" "$TEMPDIR" || die
 export KCFLAGS="-I$DATADIR/patch -ffunction-sections -fdata-sections"
 
 echo "Reading special section data"
-SPECIAL_VARS=$(readelf -wi "$VMLINUX" |
-	       gawk --non-decimal-data '
-	       BEGIN { a = b = p = e = 0 }
-	       a == 0 && /DW_AT_name.* alt_instr\s*$/ {a = 1; next}
-	       b == 0 && /DW_AT_name.* bug_entry\s*$/ {b = 1; next}
-	       p == 0 && /DW_AT_name.* paravirt_patch_site\s*$/ {p = 1; next}
-	       e == 0 && /DW_AT_name.* exception_table_entry\s*$/ {e = 1; next}
-	       a == 1 {printf("export ALT_STRUCT_SIZE=%d\n", $4); a = 2}
-	       b == 1 {printf("export BUG_STRUCT_SIZE=%d\n", $4); b = 2}
-	       p == 1 {printf("export PARA_STRUCT_SIZE=%d\n", $4); p = 2}
-	       e == 1 {printf("export EX_STRUCT_SIZE=%d\n", $4); e = 2}
-	       a == 2 && b == 2 && p == 2 && e == 2 {exit}')
+#SPECIAL_VARS=$(readelf -wi "$VMLINUX" |
+#	       gawk --non-decimal-data '
+#	       BEGIN { a = b = p = e = 0 }
+#	       a == 0 && /DW_AT_name.* alt_instr\s*$/ {a = 1; next}
+#	       b == 0 && /DW_AT_name.* bug_entry\s*$/ {b = 1; next}
+#	       p == 0 && /DW_AT_name.* paravirt_patch_site\s*$/ {p = 1; next}
+#	       e == 0 && /DW_AT_name.* exception_table_entry\s*$/ {e = 1; next}
+#	       a == 1 {printf("export ALT_STRUCT_SIZE=%d\n", $4); a = 2}
+#	       b == 1 {printf("export BUG_STRUCT_SIZE=%d\n", $4); b = 2}
+#	       p == 1 {printf("export PARA_STRUCT_SIZE=%d\n", $4); p = 2}
+#	       e == 1 {printf("export EX_STRUCT_SIZE=%d\n", $4); e = 2}
+#	       a == 2 && b == 2 && p == 2 && e == 2 {exit}')
 
-[[ -n $SPECIAL_VARS ]] && eval "$SPECIAL_VARS"
+# REMOVEME: The above took too way long on a 1-core beaker system...the below is a
+# temporary hack to alleviate the time it takes for awk to read everything..
+export ALT_STRUCT_SIZE=$(readelf -wi $VMLINUX | grep -a1 "alt_instr\s*$" | grep DW_AT_byte_size | head -n 1 | awk '{print $4}')
+
+export BUG_STRUCT_SIZE=$(readelf -wi $VMLINUX | grep -a1 "bug_entry\s*$" | grep DW_AT_byte_size | head -n 1 | awk '{print $4}')
+
+export PARA_STRUCT_SIZE=$(readelf -wi $VMLINUX | grep -a1 "paravirt_patch_site\s*$" | grep DW_AT_byte_size | head -n 1 | awk '{print $4}')
+
+export EX_STRUCT_SIZE=$(readelf -wi $VMLINUX | grep -a1 "exception_table_entry\s*$" | grep DW_AT_byte_size | head -n 1 | awk '{print $4}')
+
+#[[ -n $SPECIAL_VARS ]] && eval "$SPECIAL_VARS"
 
 if [[ -z $ALT_STRUCT_SIZE ]] || [[ -z $BUG_STRUCT_SIZE ]] ||
    [[ -z $PARA_STRUCT_SIZE ]] || [[ -z $EX_STRUCT_SIZE ]]; then
 	die "can't find special struct size"
 fi
 for i in $ALT_STRUCT_SIZE $BUG_STRUCT_SIZE $PARA_STRUCT_SIZE $EX_STRUCT_SIZE; do
-	if [[ ! $i -gt 0 ]] || [[ ! $i -le 16 ]]; then
+	if [[ ! $i -gt 0 ]] || [[ ! $i -le 24 ]]; then # changed here, alt_instr size from 13 -> 24
 		die "invalid special struct size $i"
 	fi
 done
 
 echo "Building original kernel"
-./scripts/setlocalversion --save-scmversion || die
+# RHEL6: FIXME: there's no --save-scmversion in 2.6.x
+#./scripts/setlocalversion --save-scmversion || die
 make mrproper >> "$LOGFILE" 2>&1 || die
 unset KPATCH_GCC_TEMPDIR
 CROSS_COMPILE="$TOOLSDIR/kpatch-gcc " make "-j$CPUS" $TARGETS "O=$OBJDIR" >> "$LOGFILE" 2>&1 || die

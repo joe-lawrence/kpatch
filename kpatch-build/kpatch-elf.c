@@ -347,25 +347,6 @@ void kpatch_create_symbol_list(struct kpatch_elf *kelf)
 
 }
 
-/* Check which functions have fentry calls; save this info for later use. */
-static void kpatch_find_fentry_calls(struct kpatch_elf *kelf)
-{
-	struct symbol *sym;
-	struct rela *rela;
-	list_for_each_entry(sym, &kelf->symbols, list) {
-		if (sym->type != STT_FUNC || !sym->sec || !sym->sec->rela)
-			continue;
-
-		rela = list_first_entry(&sym->sec->rela->relas, struct rela,
-					list);
-		if (rela->type != R_X86_64_NONE ||
-		    strcmp(rela->sym->name, "__fentry__"))
-			continue;
-
-		sym->has_fentry_call = 1;
-	}
-}
-
 struct kpatch_elf *kpatch_elf_open(const char *name)
 {
 	Elf *elf;
@@ -403,7 +384,6 @@ struct kpatch_elf *kpatch_elf_open(const char *name)
 		kpatch_create_rela_list(kelf, sec);
 	}
 
-	kpatch_find_fentry_calls(kelf);
 	return kelf;
 }
 

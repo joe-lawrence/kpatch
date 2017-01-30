@@ -21,4 +21,5 @@ clean:
 
 # kbuild rules
 obj-m := kpatch.o
-kpatch-y := core.o shadow.o
+# RHEL6: FIXME: shadow.c still needs to be ported to rhel6
+kpatch-y := core.o #shadow.o

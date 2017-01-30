@@ -990,25 +990,6 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 	log_debug("\n");
 }
 
-static void kpatch_check_fentry_calls(struct kpatch_elf *kelf)
-{
-	struct symbol *sym;
-	int errs = 0;
-
-	list_for_each_entry(sym, &kelf->symbols, list) {
-		if (sym->type != STT_FUNC || sym->status != CHANGED)
-			continue;
-		if (!sym->twin->has_fentry_call) {
-			log_normal("function %s has no fentry call, unable to patch\n",
-				   sym->name);
-			errs++;
-		}
-	}
-
-	if (errs)
-		DIFF_FATAL("%d function(s) can not be patched", errs);
-}
-
 static void kpatch_verify_patchability(struct kpatch_elf *kelf)
 {
 	struct section *sec;
@@ -2215,6 +2196,8 @@ static void kpatch_create_hooks_objname_rela(struct kpatch_elf *kelf, char *objn
  *
  * TODO: Eventually we can modify recordmount so that it recognizes our bundled
  * sections as valid and does this work for us.
+ *
+ * RHEL6: FIXME: This is broken for now...as there is no -mfentry
  */
 static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 {
@@ -2452,7 +2435,6 @@ int main(int argc, char *argv[])
 	 */
 	kpatch_mark_ignored_sections(kelf_patched);
 	kpatch_compare_correlated_elements(kelf_patched);
-	kpatch_check_fentry_calls(kelf_patched);
 	kpatch_elf_teardown(kelf_base);
 	kpatch_elf_free(kelf_base);
 
