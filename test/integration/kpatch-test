@@ -316,7 +316,7 @@ run_combined_test() {
 }
 
 echo "clearing printk buffer"
-sudo dmesg -C
+sudo dmesg -c &>/dev/null
 
 if [[ $QUICK != 1 ]]; then
 	for file in "${PATCH_LIST[@]}"; do
