@@ -1,0 +1,11 @@
+--- src.orig/kernel/sysctl.c	2017-01-30 15:10:54.705218319 -0500
++++ src/kernel/sysctl.c	2017-01-30 15:11:55.163400957 -0500
+@@ -1956,6 +1956,8 @@ void sysctl_head_put(struct ctl_table_he
+ 
+ struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *head)
+ {
++	if (jiffies == 0)
++		printk("kpatch-test: testing __bug_table section changes\n");
+ 	if (!head)
+ 		BUG();
+ 	spin_lock(&sysctl_lock);

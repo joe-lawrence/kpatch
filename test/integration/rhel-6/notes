@@ -1,0 +1,122 @@
+gcc-isra.patch
+
+	JP: See the comment for kpatch_rename_mangled_functions().  I think the
+	RHEL6 version of gcc doesn't ever add the .isra suffix, so it's fine to
+	drop this one.
+
+
+gcc-static-local-var-4.patch
+macro-printk.patch
+module-kvm-fixup.patch
+
+	JP: These are complicated.  Would be nice to improve the tests somehow such
+	that these things get automatically tested.  My pipe dream would be to
+	codify what is being tested and then automatically generate these
+	patches to achieve that.  Then we wouldn't need kernel-specific patches.
+
+
+module-shadow.patch
+
+	JP: This is a basic compile-time test that the kpatch shadow code can be
+	used.  The code can be moved to pretty much any other function.
+
+
+shadow-newpid.patch
+
+	JY: shadow.c hasn't been to rhel6 yet, so we can hold off on patches that
+	use the kpatch shadow api for now.
+
+
+ERROR: gcc-mangled-3: build failed
+	ERROR: no changed objects found
+
+	JL: RHEL6 doesn't use slub, so it's probably not even picking up this patch.
+
+
+ERROR: gcc-static-local-var-5: build failed
+	ERROR: audit.o: 1 unsupported section change(s)
+	audit.o: changed function: audit_log_vformat
+	audit.o: changed function: audit_log_config_change
+	audit.o: changed function: audit_log_common_recv_msg
+	audit.o: changed function: audit_receive
+	audit.o: changed function: audit_log_n_string
+	audit.o: changed function: audit_log_end
+	audit.o: new function: kpatch_audit_check
+	audit.o: changed function: audit_log_start
+	audit.o: new function: kpatch_audit_foo
+	audit.o: changed section .init.text not selected for inclusion
+	/usr/local/libexec/kpatch/create-diff-object: unreconcilable difference
+
+
+ERROR: meminfo-cmdline-rebuild-SLOW: build failed
+	ERROR: invalid ancestor arch/x86/kernel/init_task.o for arch/x86/kernel/init_task.o
+
+		Avoid this with new commit "kpatch-build: add init_task.o to vmlinux check"
+
+
+	ERROR: init_task.o: kpatch_create_symbol_list: 331: symbol init_task at offset 16384 within section .data.init_task, expected 0
+
+		???
+
+
+	ERROR: main.o: 1 unsupported section change(s)
+	main.o: changed section .rela.init.text not selected for inclusion
+	/usr/local/libexec/kpatch/create-diff-object: unreconcilable difference
+
+
+		fs/dlm/main.c
+
+		static int __init init_dlm(void)
+			printk("DLM (built %s %s) installed\n", __DATE__, __TIME__);
+
+
+	ERROR: main.o: 1 unsupported section change(s)
+	main.o: changed section .rela.init.text not selected for inclusion
+	/usr/local/libexec/kpatch/create-diff-object: unreconcilable difference
+
+		fs/gfs2/main.c
+
+		static int __init init_gfs2_fs(void)
+			printk("GFS2 (built %s %s) installed\n", __DATE__, __TIME__);
+
+
+	ERROR: cyclades.o: 1 unsupported section change(s)
+	cyclades.o: changed section .rela.init.text not selected for inclusion
+	/usr/local/libexec/kpatch/create-diff-object: unreconcilable difference
+
+		drivers/char/cyclades.c
+
+		static int __init cy_init(void)
+		        printk(KERN_INFO "Cyclades driver " CY_VERSION " (built %s %s)\n",
+                       	__DATE__, __TIME__);
+
+
+	ERROR: nozomi.o: 1 unsupported section change(s)
+	nozomi.o: changed section .rela.init.text not selected for inclusion
+	/usr/local/libexec/kpatch/create-diff-object: unreconcilable difference
+
+		drivers/char/nozomi.c
+
+		#define VERSION_STRING DRIVER_DESC " 2.1d (build date: " \
+                	                        __DATE__ " " __TIME__ ")"
+
+		static __init int nozomi_init(void)
+        		printk(KERN_INFO "Initializing %s\n", VERSION_STRING);
+
+
+	ERROR: card.o: reference to static local variable __compound_literal.2 in __compound_literal.3 was removed
+	/usr/local/libexec/kpatch/create-diff-object: unreconcilable difference
+
+	ERROR: lec.o: 1 unsupported section change(s)
+	lec.o: changed section .rela.init.text not selected for inclusion
+	/usr/local/libexec/kpatch/create-diff-object: unreconcilable difference
+
+		net/atm/lec.c
+
+		static int __init lane_module_init(void)
+			printk("lec.c: " __DATE__ " " __TIME__ " initialized\n");
+
+
+	ERROR: invalid ancestor drivers/input/misc/winbond-cir.o for drivers/input/misc/winbond-cir.o.
+
+		???

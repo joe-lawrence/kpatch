@@ -1,0 +1,19 @@
+diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
+--- src.orig/fs/proc/meminfo.c	2017-01-30 15:06:14.012005585 -0500
++++ src/fs/proc/meminfo.c	2017-01-30 15:06:35.109130410 -0500
+@@ -48,6 +48,7 @@ static int meminfo_proc_show(struct seq_
+ 	struct zone *zone;
+ 	int lru;
+ 
++	printk("a\n");
+ /*
+  * display in kilobytes.
+  */
+@@ -243,6 +244,7 @@ static const struct file_operations memi
+ 
+ static int __init proc_meminfo_init(void)
+ {
++	printk("a\n");
+ 	proc_create("meminfo", 0, NULL, &meminfo_proc_fops);
+ 	return 0;
+ }

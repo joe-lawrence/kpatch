@@ -1,0 +1,13 @@
+--- src.orig/drivers/char/tty_buffer.c	2017-01-30 15:10:55.511221150 -0500
++++ src/drivers/char/tty_buffer.c	2017-01-30 16:01:29.514413333 -0500
+@@ -207,6 +207,10 @@ int tty_buffer_request_room(struct tty_s
+ 	/* OPTIMISATION: We could keep a per tty "zero" sized buffer to
+ 	   remove this conditional if its worth it. This would be invisible
+ 	   to the callers */
++
++	if (!size)
++		printk("kpatch-test: testing .smp_locks section changes\n");
++
+ 	if ((b = tty->buf.tail) != NULL)
+ 		left = b->size - b->used;
+ 	else

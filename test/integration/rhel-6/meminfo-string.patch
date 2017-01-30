@@ -1,0 +1,12 @@
+diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
+--- src.orig/fs/proc/meminfo.c	2017-01-30 15:06:14.012005585 -0500
++++ src/fs/proc/meminfo.c	2017-01-30 15:06:38.499149774 -0500
+@@ -145,7 +145,7 @@ static int meminfo_proc_show(struct seq_
+ 		"Committed_AS:   %8lu kB\n"
+ 		"VmallocTotal:   %8lu kB\n"
+ 		"VmallocUsed:    %8lu kB\n"
+-		"VmallocChunk:   %8lu kB\n"
++		"VMALLOCCHUNK:   %8lu kB\n"
+ #ifdef CONFIG_MEMORY_FAILURE
+ 		"HardwareCorrupted: %5lu kB\n"
+ #endif

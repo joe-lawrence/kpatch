@@ -1,0 +1,69 @@
+diff -Nupr src.orig/fs/proc/array.c src/fs/proc/array.c
+--- src.orig/fs/proc/array.c	2017-01-30 15:10:55.206220210 -0500
++++ src/fs/proc/array.c	2017-01-30 15:55:28.796474262 -0500
+@@ -315,13 +315,20 @@ static inline void task_cap(struct seq_f
+ 	render_cap_t(m, "CapBnd:\t", &cap_bset);
+ }
+ 
++#include "kpatch.h"
+ static inline void task_context_switch_counts(struct seq_file *m,
+ 						struct task_struct *p)
+ {
++	int *newpid;
++
+ 	seq_printf(m,	"voluntary_ctxt_switches:\t%lu\n"
+ 			"nonvoluntary_ctxt_switches:\t%lu\n",
+ 			p->nvcsw,
+ 			p->nivcsw);
++
++	newpid = kpatch_shadow_get(p, "newpid");
++	if (newpid)
++		seq_printf(m, "newpid:\t%d\n", *newpid);	
+ }
+ 
+ int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
+diff -Nupr src.orig/kernel/exit.c src/kernel/exit.c
+--- src.orig/kernel/exit.c	2017-01-30 15:10:54.704218292 -0500
++++ src/kernel/exit.c	2017-01-30 15:56:48.396691755 -0500
+@@ -888,6 +888,7 @@ static void check_stack_usage(void)
+ static inline void check_stack_usage(void) {}
+ #endif
+ 
++#include "kpatch.h"
+ NORET_TYPE void do_exit(long code)
+ {
+ 	struct task_struct *tsk = current;
+@@ -983,6 +984,8 @@ NORET_TYPE void do_exit(long code)
+ 	exit_thread();
+ 	cgroup_exit(tsk, 1);
+ 
++	kpatch_shadow_free(tsk, "newpid");
++
+ 	if (group_dead && tsk->signal->leader)
+ 		disassociate_ctty(1);
+ 
+diff -Nupr src.orig/kernel/fork.c src/kernel/fork.c
+--- src.orig/kernel/fork.c	2017-01-30 15:10:54.700218164 -0500
++++ src/kernel/fork.c	2017-01-30 15:58:39.697974965 -0500
+@@ -1507,6 +1507,7 @@ struct task_struct * __cpuinit fork_idle
+  * It copies the process, and if successful kick-starts
+  * it and waits for it to finish using the VM if required.
+  */
++#include "kpatch.h"
+ long do_fork(unsigned long clone_flags,
+ 	      unsigned long stack_start,
+ 	      struct pt_regs *regs,
+@@ -1566,6 +1567,13 @@ long do_fork(unsigned long clone_flags,
+ 	 */
+ 	if (!IS_ERR(p)) {
+ 		struct completion vfork;
++		int *newpid;
++		static int ctr = 0;
++
++		newpid = kpatch_shadow_alloc(p, "newpid", sizeof(*newpid),
++					     GFP_KERNEL);
++		if (newpid)
++			*newpid = ctr++;
+ 
+ 		trace_sched_process_fork(current, p);
+ 

@@ -1,0 +1,11 @@
+--- src.orig/arch/x86/kvm/x86.c	2017-01-30 15:10:56.504224207 -0500
++++ src/arch/x86/kvm/x86.c	2017-01-30 15:51:07.408964546 -0500
+@@ -183,6 +183,8 @@ void kvm_define_shared_msr(unsigned slot
+ 	int cpu;
+ 	u64 value;
+ 
++	if (!jiffies)
++		printk("kpatch kvm define shared msr\n");
+ 	if (slot >= shared_msrs_global.nr)
+ 		shared_msrs_global.nr = slot + 1;
+ 	shared_msrs_global.msrs[slot].msr = msr;

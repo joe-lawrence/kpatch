@@ -1,0 +1,13 @@
+diff -Nupr src.orig/mm/slub.c src/mm/slub.c
+--- src.orig/mm/slub.c	2017-01-30 15:06:13.929005078 -0500
++++ src/mm/slub.c	2017-01-30 15:06:22.659057661 -0500
+@@ -3997,6 +3997,9 @@ static int any_slab_objects(struct kmem_
+ {
+ 	int node;
+ 
++	if (!jiffies)
++		printk("slabinfo\n");
++
+ 	for_each_online_node(node) {
+ 		struct kmem_cache_node *n = get_node(s, node);
+ 

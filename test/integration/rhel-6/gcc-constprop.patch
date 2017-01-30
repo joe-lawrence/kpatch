@@ -1,0 +1,12 @@
+--- src.orig/kernel/time/timekeeping.c	2017-01-30 15:10:54.719218648 -0500
++++ src/kernel/time/timekeeping.c	2017-01-30 15:14:06.790725532 -0500
+@@ -384,6 +384,9 @@ void do_gettimeofday(struct timeval *tv)
+ {
+ 	struct timespec now;
+ 
++	if (!tv)
++		return;
++
+ 	getnstimeofday(&now);
+ 	tv->tv_sec = now.tv_sec;
+ 	tv->tv_usec = now.tv_nsec/1000;

@@ -1,0 +1,13 @@
+diff -Nupr src.orig/kernel/timer.c src/kernel/timer.c
+--- src.orig/kernel/timer.c	2017-01-30 15:06:13.600004535 -0500
++++ src/kernel/timer.c	2017-01-30 15:07:04.319291387 -0500
+@@ -1232,6 +1232,9 @@ static void run_timer_softirq(struct sof
+ 
+ 	hrtimer_run_pending();
+ 
++	if (!base)
++		printk("kpatch-test: testing __tracepoints section changes\n");
++
+ 	if (time_after_eq(jiffies, base->timer_jiffies))
+ 		__run_timers(base);
+ }

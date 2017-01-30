@@ -1,0 +1,28 @@
+diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
+--- src.orig/fs/proc/meminfo.c	2017-01-30 15:06:14.012005585 -0500
++++ src/fs/proc/meminfo.c	2017-01-30 15:06:17.459026499 -0500
+@@ -35,6 +35,8 @@ int meminfo_legacy_layout_sysctl_handler
+         return proc_dointvec(table, write, buffer, length, ppos);
+ }
+ 
++static int foo = 5;
++
+ static int meminfo_proc_show(struct seq_file *m, void *v)
+ {
+ 	struct sysinfo i;
+@@ -152,6 +154,7 @@ static int meminfo_proc_show(struct seq_
+ #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+ 		"AnonHugePages:  %8lu kB\n"
+ #endif
++		"kpatch: %d"
+ 		,
+ 		K(i.totalram),
+ 		K(i.freeram),
+@@ -211,6 +214,7 @@ static int meminfo_proc_show(struct seq_
+ 		,K(global_page_state(NR_ANON_TRANSPARENT_HUGEPAGES) *
+ 		   HPAGE_PMD_NR)
+ #endif
++		,foo
+ 		);
+ 
+ 	hugetlb_report_meminfo(m);
