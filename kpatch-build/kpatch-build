@@ -222,6 +222,7 @@ find_kobj() {
 				arch/x86/lib/lib.a|\
 				arch/x86/kernel/head*.o|\
 				arch/x86/kernel/ebda.o|\
+				arch/x86/kernel/init_task.o|\
 				arch/x86/kernel/platform-quirks.o|\
 				lib/lib.a)
 					KOBJFILE=vmlinux
