@@ -82,6 +82,9 @@ struct kpatch_kallsyms_args {
 	unsigned long pos;
 };
 
+void (*kpatch_set_kernel_text_ro)(void);
+void (*kpatch_set_kernel_text_rw)(void);
+
 /* this is a double loop, use goto instead of break */
 #define do_for_each_linked_func(kpmod, func) {				\
 	struct kpatch_object *_object;					\
@@ -372,8 +375,6 @@ static int kpatch_insert_jmpinstr(struct kpatch_object *object,
 
 	numpages = (PAGE_SIZE - (func->old_addr & ~PAGE_MASK) >= sizeof(jmpinstr)) ? 1 : 2;
 
-	set_memory_rw(func->old_addr & PAGE_MASK, numpages);
-
 	/*
 	 * On x86_64, kernel text mappings are mapped read-only, so we use
 	 * the kernel identity mapping instead of the kernel text mapping
@@ -389,8 +390,6 @@ static int kpatch_insert_jmpinstr(struct kpatch_object *object,
         if (probe_kernel_write((void *)loc, (void *)jmpinstr, sizeof(jmpinstr)))
                 return -EPERM;
 
-        set_memory_ro(func->old_addr & PAGE_MASK, numpages);
-
 	return 0;
 }
 
@@ -403,7 +402,6 @@ static int kpatch_restore_oldinstr(struct kpatch_object *object,
 
 	vmlinux = !strcmp(object->name, "vmlinux");
 	numpages = (PAGE_SIZE - (func->old_addr & ~PAGE_MASK) >= sizeof(func->oldinstr)) ? 1 : 2;
-	set_memory_rw(func->old_addr & PAGE_MASK, numpages);
 
 	if (vmlinux)
 		loc = (unsigned long)__va(__pa(func->old_addr));
@@ -413,7 +411,6 @@ static int kpatch_restore_oldinstr(struct kpatch_object *object,
 	if (probe_kernel_write((void *)loc, (void *)func->oldinstr, sizeof(func->oldinstr)))
 		return -EPERM;
 
-	set_memory_ro(func->old_addr & PAGE_MASK, numpages);
 	return 0;
 }
 
@@ -852,7 +849,10 @@ int kpatch_register(struct kpatch_module *kpmod)
 	 * Idle the CPUs, verify activeness safety, and atomically make the new
 	 * functions visible to the ftrace handler.
 	 */
+
+	(*kpatch_set_kernel_text_rw)();
 	ret = stop_machine(kpatch_apply_patch, kpmod, NULL);
+	(*kpatch_set_kernel_text_ro)();
 
 	/* memory barrier between func hash and state write */
 	smp_wmb();
@@ -931,6 +931,33 @@ static struct notifier_block kpatch_module_nb = {
 static int kpatch_init(void)
 {
 	int ret;
+
+	struct kpatch_kallsyms_args args = {
+		.objname = NULL,
+		.name = NULL,
+		.addr = 0,
+		.count = 0,
+		.pos = 0,
+	};
+
+	/* set_kernel_text_{ro,rw} aren't exported to modules, and for good reason ;-) */
+	args.name = "set_kernel_text_ro";
+	mutex_lock(&module_mutex);
+	kallsyms_on_each_symbol(kpatch_kallsyms_callback, &args);
+	mutex_unlock(&module_mutex);
+
+	kpatch_set_kernel_text_ro = (void *)args.addr;
+	if (!kpatch_set_kernel_text_ro)
+		return -ENXIO;
+
+	args.name = "set_kernel_text_rw";
+	mutex_lock(&module_mutex);
+	kallsyms_on_each_symbol(kpatch_kallsyms_callback, &args);
+	mutex_unlock(&module_mutex);
+
+	kpatch_set_kernel_text_rw = (void *)args.addr;
+	if (!kpatch_set_kernel_text_rw)
+		return -ENXIO;
 
 	kpatch_root_kobj = kobject_create_and_add("kpatch", kernel_kobj);
 	if (!kpatch_root_kobj)
