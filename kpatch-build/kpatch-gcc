@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -x
+shopt -s extglob
 
 TOOLCHAINCMD="$1"
 shift
@@ -33,6 +34,7 @@ if [[ "$TOOLCHAINCMD" = "gcc" ]] ; then
 				arch/x86/entry/vdso/*|\
 				drivers/firmware/efi/libstub/*|\
 				arch/x86/realmode/rmpiggy.o|\
+				$KPATCH_GCC_OBJ_IGNORE|\
 				*.*.o)
 					break
 					;;
