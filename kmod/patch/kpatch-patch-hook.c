@@ -23,6 +23,7 @@
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/kallsyms.h>
+#include <linux/sysfs.h>
 #include "kpatch.h"
 #include "kpatch-patch.h"
 
@@ -90,11 +91,7 @@ static void patch_kobj_free(struct kobject *kobj)
 {
 }
 
-static struct kobj_type patch_ktype = {
-        .release = patch_kobj_free,
-        .sysfs_ops = &kobj_sysfs_ops,
-        .default_attrs = patch_attrs,
-};
+static struct kobj_type patch_ktype;
 
 static ssize_t patch_func_old_addr_show(struct kobject *kobj,
 					struct kobj_attribute *attr, char *buf)
@@ -159,10 +156,7 @@ static void patch_object_kobj_free(struct kobject *kobj)
 	kfree(obj);
 }
 
-static struct kobj_type patch_object_ktype = {
-	.release = patch_object_kobj_free,
-	.sysfs_ops = &kobj_sysfs_ops,
-};
+static struct kobj_type patch_object_ktype;
 
 static struct kpatch_object *patch_find_or_add_object(struct list_head *head,
 						      const char *name)
@@ -339,9 +333,38 @@ static int patch_make_hook_lists(struct list_head *objects)
 	return 0;
 }
 
+static int __init setup_kobj_types(void)
+{
+#ifndef kobj_sysfs_ops
+	struct sysfs_ops *kobj_sysfs_ops;
+
+	kobj_sysfs_ops = (struct sysfs_ops *)kallsyms_lookup_name("kobj_sysfs_ops");
+	if (!kobj_sysfs_ops) {
+		pr_err("can't find kobj_sysfs_ops symbol\n");
+		return -ENXIO;
+	}
+
+	patch_ktype.sysfs_ops = kobj_sysfs_ops;
+	patch_object_ktype.sysfs_ops = kobj_sysfs_ops;
+#else
+	patch_ktype.sysfs_ops = &kobj_sysfs_ops;
+	patch_object_ktype.sysfs_ops = &kobj_sysfs_ops;
+#endif
+
+	patch_ktype.release = patch_kobj_free;
+	patch_ktype.default_attrs = patch_attrs;
+	patch_object_ktype.release = patch_object_kobj_free;
+
+	return 0;
+}
+
 static int __init patch_init(void)
 {
 	int ret;
+
+	ret = setup_kobj_types();
+	if (ret)
+		return ret;
 
 	ret = kobject_init_and_add(&kpmod.kobj, &patch_ktype,
 				   kpatch_root_kobj, "%s",
