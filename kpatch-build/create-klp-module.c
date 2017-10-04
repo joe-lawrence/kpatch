@@ -450,6 +450,7 @@ int main(int argc, char *argv[])
 	int ksyms_nr, krelas_nr;
 
 	arguments.debug = 0;
+	arguments.no_klp_arch = 0;
 	argp_parse (&argp, argc, argv, 0, 0, &arguments);
 	if (arguments.debug)
 		loglevel = DEBUG;
