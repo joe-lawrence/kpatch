@@ -1,0 +1,11 @@
+diff -Nupr src.orig/fs/proc/proc_sysctl.c src/fs/proc/proc_sysctl.c
+--- src.orig/fs/proc/proc_sysctl.c	2017-10-05 09:46:32.205229372 -0400
++++ src/fs/proc/proc_sysctl.c	2017-10-05 09:47:00.048349938 -0400
+@@ -47,6 +47,7 @@ void proc_sys_poll_notify(struct ctl_tab
+ 	if (!poll)
+ 		return;
+ 
++	printk("kpatch-test: testing gcc .isra function name mangling\n");
+ 	atomic_inc(&poll->event);
+ 	wake_up_interruptible(&poll->wait);
+ }

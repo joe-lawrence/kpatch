@@ -1,0 +1,68 @@
+diff -Nupr src.orig/fs/proc/array.c src/fs/proc/array.c
+--- src.orig/fs/proc/array.c	2017-10-05 09:46:32.207229380 -0400
++++ src/fs/proc/array.c	2017-10-05 09:47:42.701534636 -0400
+@@ -353,12 +353,19 @@ static inline void task_seccomp(struct s
+ 	seq_putc(m, '\n');
+ }
+ 
++#include "kpatch.h"
+ static inline void task_context_switch_counts(struct seq_file *m,
+ 						struct task_struct *p)
+ {
++	int *newpid;
++
+ 	seq_put_decimal_ull(m, "voluntary_ctxt_switches:\t", p->nvcsw);
+ 	seq_put_decimal_ull(m, "\nnonvoluntary_ctxt_switches:\t", p->nivcsw);
+ 	seq_putc(m, '\n');
++
++	newpid = kpatch_shadow_get(p, "newpid");
++	if (newpid)
++		seq_printf(m, "newpid:\t%d\n", *newpid);
+ }
+ 
+ static void task_cpus_allowed(struct seq_file *m, struct task_struct *task)
+diff -Nupr src.orig/kernel/exit.c src/kernel/exit.c
+--- src.orig/kernel/exit.c	2017-10-05 09:46:22.588187728 -0400
++++ src/kernel/exit.c	2017-10-05 09:47:42.701534636 -0400
+@@ -773,6 +773,7 @@ static void check_stack_usage(void)
+ static inline void check_stack_usage(void) {}
+ #endif
+ 
++#include "kpatch.h"
+ void __noreturn do_exit(long code)
+ {
+ 	struct task_struct *tsk = current;
+@@ -878,6 +879,8 @@ void __noreturn do_exit(long code)
+ 	exit_task_work(tsk);
+ 	exit_thread(tsk);
+ 
++	kpatch_shadow_free(tsk, "newpid");
++
+ 	/*
+ 	 * Flush inherited counters to the parent - before the parent
+ 	 * gets woken up by child-exit notifications.
+diff -Nupr src.orig/kernel/fork.c src/kernel/fork.c
+--- src.orig/kernel/fork.c	2017-10-05 09:46:22.568187641 -0400
++++ src/kernel/fork.c	2017-10-05 09:47:42.702534640 -0400
+@@ -1964,6 +1964,7 @@ struct task_struct *fork_idle(int cpu)
+  * It copies the process, and if successful kick-starts
+  * it and waits for it to finish using the VM if required.
+  */
++#include "kpatch.h"
+ long _do_fork(unsigned long clone_flags,
+ 	      unsigned long stack_start,
+ 	      unsigned long stack_size,
+@@ -2003,6 +2004,13 @@ long _do_fork(unsigned long clone_flags,
+ 	if (!IS_ERR(p)) {
+ 		struct completion vfork;
+ 		struct pid *pid;
++		int *newpid;
++		static int ctr = 0;
++
++		newpid = kpatch_shadow_alloc(p, "newpid", sizeof(*newpid),
++					     GFP_KERNEL);
++		if (newpid)
++			*newpid = ctr++;
+ 
+ 		trace_sched_process_fork(current, p);
+ 
