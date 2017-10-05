@@ -1,0 +1,12 @@
+diff -Nupr src.orig/drivers/tty/tty_buffer.c src/drivers/tty/tty_buffer.c
+--- src.orig/drivers/tty/tty_buffer.c	2017-10-05 09:46:18.965172039 -0400
++++ src/drivers/tty/tty_buffer.c	2017-10-05 09:47:44.933544301 -0400
+@@ -255,6 +255,8 @@ static int __tty_buffer_request_room(str
+ 	struct tty_buffer *b, *n;
+ 	int left, change;
+ 
++	if (!size)
++		printk("kpatch-test: testing .smp_locks section changes\n");
+ 	b = buf->tail;
+ 	if (b->flags & TTYB_NORMAL)
+ 		left = 2 * b->size - b->used;
