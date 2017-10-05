@@ -1,0 +1,12 @@
+diff -Nupr src.orig/fs/proc/proc_sysctl.c src/fs/proc/proc_sysctl.c
+--- src.orig/fs/proc/proc_sysctl.c	2017-10-05 09:46:32.205229372 -0400
++++ src/fs/proc/proc_sysctl.c	2017-10-05 09:46:32.648231290 -0400
+@@ -315,6 +315,8 @@ static void start_unregistering(struct c
+ 
+ static struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *head)
+ {
++	if (jiffies == 0)
++		printk("kpatch-test: testing __bug_table section changes\n");
+ 	BUG_ON(!head);
+ 	spin_lock(&sysctl_lock);
+ 	if (!use_table(head))
