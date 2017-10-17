@@ -48,6 +48,7 @@ LOGFILE="$CACHEDIR/build.log"
 DEBUG=0
 SKIPCLEANUP=0
 SKIPGCCCHECK=0
+REUSECACHE=0
 ARCH_KCFLAGS=""
 declare -a PATCH_LIST
 APPLIED_PATCHES=0
@@ -359,12 +360,13 @@ usage() {
 	echo "		-t, --target	   Specify custom kernel build targets" >&2
 	echo "		-o, --output	   Specify output folder" >&2
 	echo "		-d, --debug	   Keep scratch files in /tmp" >&2
+	echo "		--reuse-cache	   Reuse kpatch \$CACHEDIR" >&2
 	echo "		--skip-cleanup     Skip post-build cleanup" >&2
 	echo "		--skip-gcc-check   Skip gcc version matching check" >&2
 	echo "		                   (not recommended)" >&2
 }
 
-options="$(getopt -o hr:s:c:v:j:t:n:o:d -l "help,sourcerpm:,sourcedir:,config:,vmlinux:,jobs:,target:,name:,output:,debug,skip-gcc-check,skip-cleanup" -- "$@")" || die "getopt failed"
+options="$(getopt -o hr:s:c:v:j:t:n:o:d -l "help,sourcerpm:,sourcedir:,config:,vmlinux:,jobs:,target:,name:,output:,debug,reuse-cache,eskip-gcc-check,skip-cleanup" -- "$@")" || die "getopt failed"
 
 eval set -- "$options"
 
@@ -427,6 +429,10 @@ while [[ $# -gt 0 ]]; do
 	--skip-gcc-check)
 		echo "WARNING: Skipping gcc version matching check (not recommended)"
 		SKIPGCCCHECK=1
+		;;
+	--reuse-cache)
+		echo "Reusing CACHEDIR=$CACHEDIR"
+		REUSECACHE=1
 		;;
 	*)
 		[[ "$1" = "--" ]] && shift && continue
@@ -638,14 +644,16 @@ export KCFLAGS="-I$DATADIR/patch -ffunction-sections -fdata-sections $ARCH_KCFLA
 echo "Reading special section data"
 find_special_section_data
 
-echo "Building original kernel"
-./scripts/setlocalversion --save-scmversion || die
-make mrproper >> "$LOGFILE" 2>&1 || die
-cp -f "$CONFIGFILE" "$SRCDIR/.config"
-unset KPATCH_GCC_TEMPDIR
-# $TARGETS used as list, no quotes.
-# shellcheck disable=SC2086
-CROSS_COMPILE="$TOOLSDIR/kpatch-gcc " make "-j$CPUS" $TARGETS >> "$LOGFILE" 2>&1 || die
+if [[ $REUSECACHE -eq 0 ]]; then
+	echo "Building original kernel"
+	./scripts/setlocalversion --save-scmversion || die
+	make mrproper >> "$LOGFILE" 2>&1 || die
+	cp -f "$CONFIGFILE" "$SRCDIR/.config"
+	unset KPATCH_GCC_TEMPDIR
+	# $TARGETS used as list, no quotes.
+	# shellcheck disable=SC2086
+	CROSS_COMPILE="$TOOLSDIR/kpatch-gcc " make "-j$CPUS" $TARGETS >> "$LOGFILE" 2>&1 || die
+fi
 
 echo "Building patched kernel"
 apply_patches
