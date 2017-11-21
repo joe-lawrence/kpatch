@@ -48,7 +48,7 @@ ROOTDIR="$(readlink -f $SCRIPTDIR/../..)"
 KPATCH="sudo $ROOTDIR/kpatch/kpatch"
 RMMOD="sudo rmmod"
 unset CCACHE_HASHDIR
-KPATCHBUILD="$ROOTDIR"/kpatch-build/kpatch-build
+KPATCHBUILD="$ROOTDIR/kpatch-build/kpatch-build --cache copy"
 ERROR=0
 LOG=test.log
 rm -f $LOG
@@ -151,7 +151,12 @@ build_module() {
 	log "build: $prefix"
 
 	if ! $KPATCHBUILD $file >> $LOG 2>&1; then
-		[[ $shouldfail -eq 0 ]] && error "$prefix: build failed"
+		if [[ $shouldfail -eq 0 ]] ; then
+			error "$prefix: build failed"
+			echo "-- last 100 lines of build.log --"
+			tail -n 100 ~/.kpatch/build.log
+			echo "-- EOF --"
+		fi
 	else
 		[[ $shouldfail -eq 1 ]] && error "$prefix: build succeeded when it should have failed"
 	fi
