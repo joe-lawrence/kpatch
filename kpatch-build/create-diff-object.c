@@ -1359,12 +1359,42 @@ static int kpatch_include_hook_elements(struct kpatch_elf *kelf)
 	struct rela *rela;
 	int found = 0;
 
+	static char *hook_sections[] = {
+		".kpatch.hooks.load",
+		".kpatch.hooks.unload",
+		".rela.kpatch.hooks.load",
+		".rela.kpatch.hooks.unload",
+		".kpatch.hooks.pre_patch",
+		".kpatch.hooks.post_patch",
+		".kpatch.hooks.pre_unpatch",
+		".kpatch.hooks.post_unpatch",
+		".rela.kpatch.hooks.pre_patch",
+		".rela.kpatch.hooks.post_patch",
+		".rela.kpatch.hooks.pre_unpatch",
+		".rela.kpatch.hooks.post_unpatch",
+		NULL,
+	};
+	char **hook_section;
+
+	static char *hook_func_ptrs[] = {
+		"kpatch_load_data",
+		"kpatch_unload_data",
+		"kpatch_pre_patch_data",
+		"kpatch_post_patch_data",
+		"kpatch_pre_unpatch_data",
+		"kpatch_post_unpatch_data",
+		NULL,
+	};
+	char **hook_func_ptr;
+
 	/* include load/unload sections */
 	list_for_each_entry(sec, &kelf->sections, list) {
-		if (!strcmp(sec->name, ".kpatch.hooks.load") ||
-		    !strcmp(sec->name, ".kpatch.hooks.unload") ||
-		    !strcmp(sec->name, ".rela.kpatch.hooks.load") ||
-		    !strcmp(sec->name, ".rela.kpatch.hooks.unload")) {
+
+		for (hook_section = hook_sections; *hook_section; hook_section++) {
+
+			if (strcmp(*hook_section, sec->name))
+				continue;
+
 			sec->include = 1;
 			found = 1;
 			if (is_rela_section(sec)) {
@@ -1387,12 +1417,16 @@ static int kpatch_include_hook_elements(struct kpatch_elf *kelf)
 
 	/*
 	 * Strip temporary global load/unload function pointer objects
-	 * used by the kpatch_[load|unload]() macros.
+	 * used by the kpatch_* hook macros.
 	 */
-	list_for_each_entry(sym, &kelf->symbols, list)
-		if (!strcmp(sym->name, "kpatch_load_data") ||
-		    !strcmp(sym->name, "kpatch_unload_data"))
-			sym->include = 0;
+	list_for_each_entry(sym, &kelf->symbols, list) {
+		for (hook_func_ptr = hook_func_ptrs; *hook_func_ptr; hook_func_ptr++) {
+			if (!strcmp(*hook_func_ptr, sym->name)) {
+				sym->include = 0;
+				break;
+			}
+		}
+	}
 
 	return found;
 }
@@ -2570,6 +2604,24 @@ static void kpatch_create_hooks_objname_rela(struct kpatch_elf *kelf, char *objn
 	struct symbol *strsym;
 	int objname_offset;
 
+	struct hook { char *name; int offset; };
+	static struct hook hooks[] = {
+		{ .name = ".rela.kpatch.hooks.load",
+		  .offset =  offsetof(struct kpatch_patch_hook, objname) },
+		{ .name = ".rela.kpatch.hooks.unload",
+		  .offset = offsetof(struct kpatch_patch_hook, objname) },
+		{ .name = ".rela.kpatch.hooks.pre_patch",
+		  .offset = offsetof(struct kpatch_pre_patch_hook, objname) },
+		{ .name = ".rela.kpatch.hooks.post_patch",
+		  .offset = offsetof(struct kpatch_post_patch_hook, objname) },
+		{ .name = ".rela.kpatch.hooks.pre_unpatch",
+		  .offset = offsetof(struct kpatch_pre_unpatch_hook, objname) },
+		{ .name = ".rela.kpatch.hooks.post_unpatch",
+		  .offset = offsetof(struct kpatch_post_patch_hook, objname) },
+		{ .name = NULL, .offset = 0 },
+	};
+	struct hook *hookp;
+
 	/* lookup strings symbol */
 	strsym = find_symbol_by_name(&kelf->symbols, ".kpatch.strings");
 	if (!strsym)
@@ -2579,15 +2631,16 @@ static void kpatch_create_hooks_objname_rela(struct kpatch_elf *kelf, char *objn
 	objname_offset = offset_of_string(&kelf->strings, objname);
 
 	list_for_each_entry(sec, &kelf->sections, list) {
-		if (strcmp(sec->name, ".rela.kpatch.hooks.load") &&
-		    strcmp(sec->name, ".rela.kpatch.hooks.unload"))
-			continue;
-
-		ALLOC_LINK(rela, &sec->relas);
-		rela->sym = strsym;
-		rela->type = ABSOLUTE_RELA_TYPE;
-		rela->addend = objname_offset;
-		rela->offset = offsetof(struct kpatch_patch_hook, objname);
+		for (hookp = hooks; hookp->name; hookp++) {
+			if (!strcmp(hookp->name, sec->name)) {
+				ALLOC_LINK(rela, &sec->relas);
+				rela->sym = strsym;
+				rela->type = ABSOLUTE_RELA_TYPE;
+				rela->addend = objname_offset;
+				rela->offset = hookp->offset;
+				break;
+			}
+		}
 	}
 }
 

@@ -209,6 +209,124 @@ static void patch_free_livepatch(struct klp_patch *patch)
 	}
 }
 
+extern struct kpatch_pre_patch_hook __kpatch_hooks_pre_patch[], __kpatch_hooks_pre_patch_end[];
+extern struct kpatch_post_patch_hook __kpatch_hooks_post_patch[], __kpatch_hooks_post_patch_end[];
+extern struct kpatch_pre_unpatch_hook __kpatch_hooks_pre_unpatch[], __kpatch_hooks_pre_unpatch_end[];
+extern struct kpatch_post_unpatch_hook __kpatch_hooks_post_unpatch[], __kpatch_hooks_post_unpatch_end[];
+
+static int patch_add_hooks_to_object(void)
+{
+	struct kpatch_pre_patch_hook *p_pre_patch_hook;
+	struct kpatch_post_patch_hook *p_post_patch_hook;
+	struct kpatch_pre_unpatch_hook *p_pre_unpatch_hook;
+	struct kpatch_post_unpatch_hook *p_post_unpatch_hook;
+	struct patch_object *object;
+
+	for (p_pre_patch_hook = __kpatch_hooks_pre_patch;
+	     p_pre_patch_hook < __kpatch_hooks_pre_patch_end;
+	     p_pre_patch_hook++) {
+		object = patch_find_object_by_name(p_pre_patch_hook->objname);
+		if (!object)
+			return -ENOMEM;
+	}
+
+	for (p_post_patch_hook = __kpatch_hooks_post_patch;
+	     p_post_patch_hook < __kpatch_hooks_post_patch_end;
+	     p_post_patch_hook++) {
+		object = patch_find_object_by_name(p_post_patch_hook->objname);
+		if (!object)
+			return -ENOMEM;
+	}
+
+	for (p_pre_unpatch_hook = __kpatch_hooks_pre_unpatch;
+	     p_pre_unpatch_hook < __kpatch_hooks_pre_unpatch_end;
+	     p_pre_unpatch_hook++) {
+		object = patch_find_object_by_name(p_pre_unpatch_hook->objname);
+		if (!object)
+			return -ENOMEM;
+	}
+
+	for (p_post_unpatch_hook = __kpatch_hooks_post_unpatch;
+	     p_post_unpatch_hook < __kpatch_hooks_post_unpatch_end;
+	     p_post_unpatch_hook++) {
+		object = patch_find_object_by_name(p_post_unpatch_hook->objname);
+		if (!object)
+			return -ENOMEM;
+	}
+
+	return 0;
+}
+
+
+static inline bool patch_objname_match(const char *lobject_name,
+				       const char *hook_objname)
+{
+	return (lobject_name == NULL && !strcmp(hook_objname, "vmlinux")) ||
+		(lobject_name && hook_objname && !strcmp(lobject_name, hook_objname));
+}
+
+static int patch_set_klp_callbacks(struct klp_object *lobject)
+{
+	struct kpatch_pre_patch_hook *p_pre_patch_hook;
+	struct kpatch_post_patch_hook *p_post_patch_hook;
+	struct kpatch_pre_unpatch_hook *p_pre_unpatch_hook;
+	struct kpatch_post_unpatch_hook *p_post_unpatch_hook;
+
+	for (p_pre_patch_hook = __kpatch_hooks_pre_patch;
+	     p_pre_patch_hook < __kpatch_hooks_pre_patch_end;
+	     p_pre_patch_hook++) {
+		if (patch_objname_match(lobject->name, p_pre_patch_hook->objname)) {
+			if (lobject->callbacks.pre_patch) {
+				pr_err("extra pre-patch callback for object: %s\n",
+					lobject->name ? lobject->name : "vmlinux");
+				return -EINVAL;
+			}
+			lobject->callbacks.pre_patch = p_pre_patch_hook->hook;
+		}
+	}
+
+	for (p_post_patch_hook = __kpatch_hooks_post_patch;
+	     p_post_patch_hook < __kpatch_hooks_post_patch_end;
+	     p_post_patch_hook++) {
+		if (patch_objname_match(lobject->name, p_post_patch_hook->objname)) {
+			if (lobject->callbacks.post_patch) {
+				pr_err("extra post-patch callback for object: %s\n",
+					lobject->name ? lobject->name : "vmlinux");
+				return -EINVAL;
+			}
+			lobject->callbacks.post_patch = p_post_patch_hook->hook;
+		}
+	}
+
+	for (p_pre_unpatch_hook = __kpatch_hooks_pre_unpatch;
+	     p_pre_unpatch_hook < __kpatch_hooks_pre_unpatch_end;
+	     p_pre_unpatch_hook++) {
+		if (patch_objname_match(lobject->name, p_pre_unpatch_hook->objname)) {
+			if (lobject->callbacks.pre_unpatch) {
+				pr_err("extra pre-unpatch callback for object: %s\n",
+					lobject->name ? lobject->name : "vmlinux");
+				return -EINVAL;
+			}
+			lobject->callbacks.pre_unpatch = p_pre_unpatch_hook->hook;
+		}
+	}
+
+	for (p_post_unpatch_hook = __kpatch_hooks_post_unpatch;
+	     p_post_unpatch_hook < __kpatch_hooks_post_unpatch_end;
+	     p_post_unpatch_hook++) {
+		if (patch_objname_match(lobject->name, p_post_unpatch_hook->objname)) {
+			if (lobject->callbacks.post_unpatch) {
+				pr_err("extra post-unpatch callback for object: %s\n",
+					lobject->name ? lobject->name : "vmlinux");
+				return -EINVAL;
+			}
+			lobject->callbacks.post_unpatch = p_post_unpatch_hook->hook;
+		}
+	}
+
+	return 0;
+}
+
 extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
 #ifndef HAVE_ELF_RELOCS
 extern struct kpatch_patch_dynrela __kpatch_dynrelas[], __kpatch_dynrelas_end[];
@@ -246,6 +364,10 @@ static int __init patch_init(void)
 			goto out;
 	}
 #endif
+
+	ret = patch_add_hooks_to_object();
+	if (ret)
+		goto out;
 
 	/* past this point, only possible return code is -ENOMEM */
 	ret = -ENOMEM;
@@ -309,6 +431,10 @@ static int __init patch_init(void)
 			j++;
 		}
 #endif /* HAVE_ELF_RELOCS */
+
+		ret = patch_set_klp_callbacks(lobject);
+		if (ret)
+			goto out;
 
 		i++;
 	}

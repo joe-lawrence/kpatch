@@ -9,6 +9,7 @@ __kpatch_checksum = ADDR(.kpatch.checksum);
 
 SECTIONS
 {
+#ifdef __KPATCH_MODULE__
   .kpatch.hooks.load : {
     __kpatch_hooks_load = . ;
     *(.kpatch.hooks.load)
@@ -28,6 +29,32 @@ SECTIONS
     __kpatch_hooks_unload_end = . ;
     QUAD(0);
   }
+#else
+  .kpatch.hooks.pre_patch : {
+    __kpatch_hooks_pre_patch = . ;
+    *(.kpatch.hooks.pre_patch)
+    __kpatch_hooks_pre_patch_end = . ;
+    QUAD(0);
+  }
+  .kpatch.hooks.post_patch : {
+    __kpatch_hooks_post_patch = . ;
+    *(.kpatch.hooks.post_patch)
+    __kpatch_hooks_post_patch_end = . ;
+    QUAD(0);
+  }
+  .kpatch.hooks.pre_unpatch : {
+    __kpatch_hooks_pre_unpatch = . ;
+    *(.kpatch.hooks.pre_unpatch)
+    __kpatch_hooks_pre_unpatch_end = . ;
+    QUAD(0);
+  }
+  .kpatch.hooks.post_unpatch : {
+    __kpatch_hooks_post_unpatch = . ;
+    *(.kpatch.hooks.post_unpatch)
+    __kpatch_hooks_post_unpatch_end = . ;
+    QUAD(0);
+  }
+#endif
   .kpatch.force : {
     __kpatch_force_funcs = . ;
     *(.kpatch.force)

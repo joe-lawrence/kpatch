@@ -48,4 +48,22 @@ struct kpatch_patch_hook {
 	char *objname;
 };
 
+struct klp_object *obj;
+struct kpatch_pre_patch_hook {
+	int (*hook)(struct klp_object *obj);
+	char *objname;
+};
+struct kpatch_post_patch_hook {
+	void (*hook)(struct klp_object *obj);
+	char *objname;
+};
+struct kpatch_pre_unpatch_hook {
+	void (*hook)(struct klp_object *obj);
+	char *objname;
+};
+struct kpatch_post_unpatch_hook {
+	void (*hook)(struct klp_object *obj);
+	char *objname;
+};
+
 #endif /* _KPATCH_PATCH_H_ */

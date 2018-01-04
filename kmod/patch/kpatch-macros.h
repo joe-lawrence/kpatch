@@ -3,19 +3,7 @@
 
 #include <linux/compiler.h>
 #include <linux/jiffies.h>
-
-typedef void (*kpatch_loadcall_t)(void);
-typedef void (*kpatch_unloadcall_t)(void);
-
-struct kpatch_load {
-	kpatch_loadcall_t fn;
-	char *objname; /* filled in by create-diff-object */
-};
-
-struct kpatch_unload {
-	kpatch_unloadcall_t fn;
-	char *objname; /* filled in by create-diff-object */
-};
+#include <linux/version.h>
 
 /*
  * KPATCH_IGNORE_SECTION macro
@@ -38,6 +26,84 @@ struct kpatch_unload {
  */
 #define KPATCH_IGNORE_FUNCTION(_fn) \
 	void *__kpatch_ignore_func_##_fn __section(.kpatch.ignore.functions) = _fn;
+
+
+/* Support for livepatch callback hooks */
+#if IS_ENABLED(CONFIG_LIVEPATCH)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+#  define HAS_LIVEPATCH_HOOKS
+# endif
+#endif
+
+#ifdef HAS_LIVEPATCH_HOOKS
+
+#include <linux/livepatch.h>
+
+typedef int (*kpatch_pre_patchcall_t)(struct klp_object *obj);
+typedef void (*kpatch_post_patchcall_t)(struct klp_object *obj);
+typedef void (*kpatch_pre_unpatchcall_t)(struct klp_object *obj);
+typedef void (*kpatch_post_unpatchcall_t)(struct klp_object *obj);
+
+struct kpatch_pre_patch {
+	kpatch_pre_patchcall_t fn;
+	char *objname; /* filled in by create-diff-object */
+};
+
+struct kpatch_post_patch {
+	kpatch_post_patchcall_t fn;
+	char *objname; /* filled in by create-diff-object */
+};
+
+struct kpatch_pre_unpatch {
+	kpatch_pre_unpatchcall_t fn;
+	char *objname; /* filled in by create-diff-object */
+};
+
+struct kpatch_post_unpatch {
+	kpatch_post_unpatchcall_t fn;
+	char *objname; /* filled in by create-diff-object */
+};
+
+
+#define KPATCH_PRE_PATCH_HOOK(_fn) \
+	static inline kpatch_pre_patchcall_t __pre_patchtest(void) { return _fn; } \
+	struct kpatch_pre_patch kpatch_pre_patch_data_##_fn __section(.kpatch.hooks.pre_patch) = { \
+		.fn = _fn, \
+		.objname = NULL \
+	};
+#define KPATCH_POST_PATCH_HOOK(_fn) \
+	static inline kpatch_post_patchcall_t __post_patchtest(void) { return _fn; } \
+	struct kpatch_post_patch kpatch_post_patch_data_##_fn __section(.kpatch.hooks.post_patch) = { \
+		.fn = _fn, \
+		.objname = NULL \
+	};
+#define KPATCH_PRE_UNPATCH_HOOK(_fn) \
+	static inline kpatch_pre_unpatchcall_t __pre_unpatchtest(void) { return _fn; } \
+	struct kpatch_pre_unpatch kpatch_pre_unpatch_data_##_fn __section(.kpatch.hooks.pre_unpatch) = { \
+		.fn = _fn, \
+		.objname = NULL \
+	};
+#define KPATCH_POST_UNPATCH_HOOK(_fn) \
+	static inline kpatch_post_unpatchcall_t __post_unpatchtest(void) { return _fn; } \
+	struct kpatch_post_unpatch kpatch_post_unpatch_data_##_fn __section(.kpatch.hooks.post_unpatch) = { \
+		.fn = _fn, \
+		.objname = NULL \
+	};
+
+#else /* HAS_LIVEPATCH_HOOKS */
+
+typedef void (*kpatch_loadcall_t)(void);
+typedef void (*kpatch_unloadcall_t)(void);
+
+struct kpatch_load {
+	kpatch_loadcall_t fn;
+	char *objname; /* filled in by create-diff-object */
+};
+
+struct kpatch_unload {
+	kpatch_unloadcall_t fn;
+	char *objname; /* filled in by create-diff-object */
+};
 
 /*
  * KPATCH_LOAD_HOOK macro
@@ -73,6 +139,8 @@ struct kpatch_unload {
 		.fn = _fn, \
 		.objname = NULL \
 	};
+
+#endif /* HAS_LIVEPATCH_HOOKS */
 
 /*
  * KPATCH_FORCE_UNSAFE macro
