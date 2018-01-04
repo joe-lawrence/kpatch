@@ -310,7 +310,6 @@ static int kpatch_apply_patch(void *data)
 {
 	struct kpatch_module *kpmod = data;
 	struct kpatch_func *func;
-	struct kpatch_hook *hook;
 	struct kpatch_object *object;
 	int ret;
 
@@ -318,6 +317,23 @@ static int kpatch_apply_patch(void *data)
 	if (ret) {
 		kpatch_state_finish(KPATCH_STATE_FAILURE);
 		return ret;
+	}
+
+	/* run any user-defined pre-patch callbacks */
+	list_for_each_entry(object, &kpmod->objects, list) {
+
+		object->callbacks_enabled = true;
+
+		if (!kpatch_object_linked(object) ||
+		    !object->pre_patch_callback)
+			continue;
+
+		ret = (*object->pre_patch_callback)(object);
+		if (ret) {
+			object->callbacks_enabled = false;
+			pr_err("pre-patch callback failed!\n");
+			goto err;
+		}
 	}
 
 	/* tentatively add the new funcs to the global func hash */
@@ -341,19 +357,36 @@ static int kpatch_apply_patch(void *data)
 			hash_del_rcu(&func->node);
 		} while_for_each_linked_func();
 
-		return -EBUSY;
+		ret = -EBUSY;
+		goto err;
 	}
 
-	/* run any user-defined load hooks */
+	/* run any user-defined post-patch callbacks */
 	list_for_each_entry(object, &kpmod->objects, list) {
-		if (!kpatch_object_linked(object))
+		if (!kpatch_object_linked(object) ||
+		    !object->post_patch_callback)
 			continue;
-		list_for_each_entry(hook, &object->hooks_load, list)
-			(*hook->hook)();
-	}
 
+		(*object->post_patch_callback)(object);
+	}
 
 	return 0;
+err:
+	kpatch_state_finish(KPATCH_STATE_FAILURE);
+
+	WARN(ret, "error (%d) patching '%s'\n", ret,
+		object->name ? object->name : "vmlinux");
+
+	/* run any user-defined post-unpatch callbacks */
+	list_for_each_entry_continue_reverse(object, &kpmod->objects, list) {
+		if (!kpatch_object_linked(object) ||
+		    !object->post_unpatch_callback)
+			continue;
+
+		(*object->post_unpatch_callback)(object);
+	}
+
+	return ret;
 }
 
 /* Called from stop_machine */
@@ -361,7 +394,6 @@ static int kpatch_remove_patch(void *data)
 {
 	struct kpatch_module *kpmod = data;
 	struct kpatch_func *func;
-	struct kpatch_hook *hook;
 	struct kpatch_object *object;
 	int ret;
 
@@ -376,17 +408,29 @@ static int kpatch_remove_patch(void *data)
 	if (ret == KPATCH_STATE_FAILURE)
 		return -EBUSY;
 
+	/* run any user-defined pre-unpatch callbacks */
+	list_for_each_entry(object, &kpmod->objects, list) {
+		if (!kpatch_object_linked(object) ||
+		    !object->pre_unpatch_callback ||
+		    !object->callbacks_enabled)
+			continue;
+
+		(*object->pre_unpatch_callback)(object);
+	}
+
 	/* Succeeded, remove all updating funcs from hash table */
 	do_for_each_linked_func(kpmod, func) {
 		hash_del_rcu(&func->node);
 	} while_for_each_linked_func();
 
-	/* run any user-defined unload hooks */
+	/* run any user-defined post-unpatch callbacks */
 	list_for_each_entry(object, &kpmod->objects, list) {
-		if (!kpatch_object_linked(object))
+		if (!kpatch_object_linked(object) ||
+		    !object->post_unpatch_callback ||
+		    !object->callbacks_enabled)
 			continue;
-		list_for_each_entry(hook, &object->hooks_unload, list)
-			(*hook->hook)();
+
+		(*object->post_unpatch_callback)(object);
 	}
 
 	return 0;
@@ -808,7 +852,6 @@ static int kpatch_module_notify(struct notifier_block *nb, unsigned long action,
 	struct kpatch_module *kpmod;
 	struct kpatch_object *object;
 	struct kpatch_func *func;
-	struct kpatch_hook *hook;
 	int ret = 0;
 	bool found = false;
 
@@ -839,13 +882,24 @@ done:
 
 	pr_notice("patching newly loaded module '%s'\n", object->name);
 
-	/* run any user-defined load hooks */
-	list_for_each_entry(hook, &object->hooks_load, list)
-		(*hook->hook)();
+	/* run any user-defined pre-patch callbacks */
+	if (object->pre_patch_callback) {
+		object->callbacks_enabled = true;
+		ret = (*object->pre_patch_callback)(object);
+		if (ret) {
+			object->callbacks_enabled = false;
+			pr_err("pre-patch callback failed!\n");
+			goto out;	/* and WARN */
+		}
+	}
 
 	/* add to the global func hash */
 	list_for_each_entry(func, &object->funcs, list)
 		hash_add_rcu(kpatch_func_hash, &func->node, func->old_addr);
+
+	/* run any user-defined post-patch callbacks */
+	if (object->post_patch_callback)
+		(*object->post_patch_callback)(object);
 
 out:
 	up(&kpatch_mutex);
