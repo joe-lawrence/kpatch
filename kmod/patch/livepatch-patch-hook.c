@@ -265,66 +265,54 @@ static inline bool patch_objname_match(const char *lobject_name,
 		(lobject_name && hook_objname && !strcmp(lobject_name, hook_objname));
 }
 
-static int patch_set_klp_callbacks(struct klp_object *lobject)
+static int pre_patch_callback(struct klp_object *obj)
 {
 	struct kpatch_pre_patch_hook *p_pre_patch_hook;
-	struct kpatch_post_patch_hook *p_post_patch_hook;
-	struct kpatch_pre_unpatch_hook *p_pre_unpatch_hook;
-	struct kpatch_post_unpatch_hook *p_post_unpatch_hook;
 
 	for (p_pre_patch_hook = __kpatch_hooks_pre_patch;
 	     p_pre_patch_hook < __kpatch_hooks_pre_patch_end;
 	     p_pre_patch_hook++) {
-		if (patch_objname_match(lobject->name, p_pre_patch_hook->objname)) {
-			if (lobject->callbacks.pre_patch) {
-				pr_err("extra pre-patch callback for object: %s\n",
-					lobject->name ? lobject->name : "vmlinux");
-				return -EINVAL;
-			}
-			lobject->callbacks.pre_patch = p_pre_patch_hook->hook;
-		}
+		if (patch_objname_match(obj->name, p_pre_patch_hook->objname))
+			p_pre_patch_hook->hook(obj);	/* throw away return value for now */
 	}
+
+	return 0;
+}
+
+static void post_patch_callback(struct klp_object *obj)
+{
+	struct kpatch_post_patch_hook *p_post_patch_hook;
 
 	for (p_post_patch_hook = __kpatch_hooks_post_patch;
 	     p_post_patch_hook < __kpatch_hooks_post_patch_end;
 	     p_post_patch_hook++) {
-		if (patch_objname_match(lobject->name, p_post_patch_hook->objname)) {
-			if (lobject->callbacks.post_patch) {
-				pr_err("extra post-patch callback for object: %s\n",
-					lobject->name ? lobject->name : "vmlinux");
-				return -EINVAL;
-			}
-			lobject->callbacks.post_patch = p_post_patch_hook->hook;
-		}
+		if (patch_objname_match(obj->name, p_post_patch_hook->objname))
+			p_post_patch_hook->hook(obj);
 	}
+}
+
+static void pre_unpatch_callback(struct klp_object *obj)
+{
+	struct kpatch_pre_unpatch_hook *p_pre_unpatch_hook;
 
 	for (p_pre_unpatch_hook = __kpatch_hooks_pre_unpatch;
 	     p_pre_unpatch_hook < __kpatch_hooks_pre_unpatch_end;
 	     p_pre_unpatch_hook++) {
-		if (patch_objname_match(lobject->name, p_pre_unpatch_hook->objname)) {
-			if (lobject->callbacks.pre_unpatch) {
-				pr_err("extra pre-unpatch callback for object: %s\n",
-					lobject->name ? lobject->name : "vmlinux");
-				return -EINVAL;
-			}
-			lobject->callbacks.pre_unpatch = p_pre_unpatch_hook->hook;
-		}
+		if (patch_objname_match(obj->name, p_pre_unpatch_hook->objname))
+			p_pre_unpatch_hook->hook(obj);
 	}
+}
+
+static void post_unpatch_callback(struct klp_object *obj)
+{
+	struct kpatch_post_unpatch_hook *p_post_unpatch_hook;
 
 	for (p_post_unpatch_hook = __kpatch_hooks_post_unpatch;
 	     p_post_unpatch_hook < __kpatch_hooks_post_unpatch_end;
 	     p_post_unpatch_hook++) {
-		if (patch_objname_match(lobject->name, p_post_unpatch_hook->objname)) {
-			if (lobject->callbacks.post_unpatch) {
-				pr_err("extra post-unpatch callback for object: %s\n",
-					lobject->name ? lobject->name : "vmlinux");
-				return -EINVAL;
-			}
-			lobject->callbacks.post_unpatch = p_post_unpatch_hook->hook;
-		}
+		if (patch_objname_match(obj->name, p_post_unpatch_hook->objname))
+			p_post_unpatch_hook->hook(obj);
 	}
-
-	return 0;
 }
 
 extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
@@ -432,9 +420,11 @@ static int __init patch_init(void)
 		}
 #endif /* HAVE_ELF_RELOCS */
 
-		ret = patch_set_klp_callbacks(lobject);
-		if (ret)
-			goto out;
+		/* Setup generic pre/post-(un)patch callback handlers */
+		lobject->callbacks.pre_patch = pre_patch_callback;
+		lobject->callbacks.post_patch = post_patch_callback;
+		lobject->callbacks.pre_unpatch = pre_unpatch_callback;
+		lobject->callbacks.post_unpatch = post_unpatch_callback;
 
 		i++;
 	}

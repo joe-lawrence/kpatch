@@ -67,7 +67,7 @@ struct kpatch_post_unpatch {
 
 #define KPATCH_PRE_PATCH_HOOK(_fn) \
 	static inline kpatch_pre_patchcall_t __pre_patchtest(void) { return _fn; } \
-	struct kpatch_pre_patch kpatch_pre_patch_data_##_fn __section(.kpatch.hooks.pre_patch) = { \
+	static struct kpatch_pre_patch kpatch_pre_patch_data_##_fn __section(.kpatch.hooks.pre_patch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
