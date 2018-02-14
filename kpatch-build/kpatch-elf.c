@@ -192,7 +192,17 @@ void kpatch_create_rela_list(struct kpatch_elf *kelf, struct section *sec)
 			ERROR("could not find rela entry symbol\n");
 		if (rela->sym->sec &&
 		    (rela->sym->sec->sh.sh_flags & SHF_STRINGS)) {
+#if defined(__s390x__)
+			int addend;
+			if (!strncmp(rela->sym->name, ".LC", 3) ||
+			    !strncmp(rela->sym->name, ".LASF", 5))
+				addend = rela->sym->sym.st_value;
+			else
+				addend = rela->addend;
+			rela->string = rela->sym->sec->data->d_buf + addend;
+#else
 			rela->string = rela->sym->sec->data->d_buf + rela->addend;
+#endif
 			if (!rela->string)
 				ERROR("could not lookup rela string for %s+%d",
 				      rela->sym->name, rela->addend);

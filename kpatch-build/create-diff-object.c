@@ -61,6 +61,8 @@
 
 #ifdef __powerpc__
 #define ABSOLUTE_RELA_TYPE R_PPC64_ADDR64
+#elif defined(__s390x__)
+#define ABSOLUTE_RELA_TYPE R_390_64
 #else
 #define ABSOLUTE_RELA_TYPE R_X86_64_64
 #endif
@@ -1060,7 +1062,7 @@ static void kpatch_compare_correlated_elements(struct kpatch_elf *kelf)
 	kpatch_compare_symbols(&kelf->symbols);
 }
 
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__s390x__)
 static void rela_insn(struct section *sec, struct rela *rela, struct insn *insn)
 {
 	unsigned long insn_addr, start, end, rela_addr;
@@ -1136,6 +1138,18 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 				ERROR("Unexpected relocation type R_PPC64_REL24 for %s\n", rela->sym->name);
 
 			add_off = 0;
+#elif defined(__s390x__)
+			if (rela->type == R_390_PC32) {
+				struct insn insn;
+				rela_insn(sec, rela, &insn);
+				add_off = (long)insn.next_byte -
+					  (long)sec->base->data->d_buf -
+					  rela->offset;
+			} else if (rela->type == R_390_64 ||
+				   rela->type == R_390_PC32DBL)
+				add_off = 0;
+			else
+				continue;
 #else
 			if (rela->type == R_X86_64_PC32) {
 				struct insn insn;
@@ -1165,7 +1179,11 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 				end = sym->sym.st_value + sym->sym.st_size;
 
 				if (!is_text_section(sym->sec) &&
+#if defined(__s390x__)
+				    rela->type == R_390_32 &&
+#else
 				    rela->type == R_X86_64_32S &&
+#endif
 				    rela->addend == sym->sec->sh.sh_size &&
 				    end == sym->sec->sh.sh_size) {
 
@@ -1219,6 +1237,28 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 	log_debug("\n");
 }
 
+#if defined(__s390x__)
+/*
+ * TODO: convert this func to s390x, it's empty for now
+ *
+ * __fentry__ calls are x86 only, for s390x we may need to check for the first
+ * instruction that is expected to be there when gcc's -mhotpatch is used.
+ *
+ * Quote from arch/s390/kernel/ftrace.c -
+ * ---
+ * In case we use gcc's hotpatch feature the original and also the disabled
+ * function prologue contains only a single six byte instruction and looks
+ * like this:
+ * >    brcl    0,0                     # offset 0
+ * To enable ftrace the code gets patched like above and afterwards looks
+ * like this:
+ * >    brasl   %r0,ftrace_caller       # offset 0
+ * ---
+ *
+ * See arch/s390/kernel/ftrace.c for more information.
+ */
+static void kpatch_check_func_profiling_calls(struct kpatch_elf *kelf) { }
+#else
 static void kpatch_check_func_profiling_calls(struct kpatch_elf *kelf)
 {
 	struct symbol *sym;
@@ -1237,6 +1277,7 @@ static void kpatch_check_func_profiling_calls(struct kpatch_elf *kelf)
 	if (errs)
 		DIFF_FATAL("%d function(s) can not be patched", errs);
 }
+#endif
 
 static void kpatch_verify_patchability(struct kpatch_elf *kelf)
 {
@@ -1912,9 +1953,14 @@ static void kpatch_include_debug_sections(struct kpatch_elf *kelf)
 	list_for_each_entry(sec, &kelf->sections, list) {
 		if (!is_rela_section(sec) || !is_debug_section(sec))
 			continue;
-		list_for_each_entry_safe(rela, saferela, &sec->relas, list)
+		list_for_each_entry_safe(rela, saferela, &sec->relas, list) {
 			if (!rela->sym->sec->include)
 				list_del(&rela->list);
+#if defined(__s390x__)
+			else
+				rela->sym->include = 1;
+#endif
+		}
 	}
 }
 
@@ -2592,6 +2638,12 @@ static void kpatch_create_hooks_objname_rela(struct kpatch_elf *kelf, char *objn
 }
 
 #ifdef __powerpc__
+void kpatch_create_mcount_sections(struct kpatch_elf *kelf) { }
+#elif defined(__s390x__)
+/*
+ * TODO: This function must be ported to s390x (no fentry, different hotpatch
+ * prologue)
+ */
 void kpatch_create_mcount_sections(struct kpatch_elf *kelf) { }
 #else
 /*

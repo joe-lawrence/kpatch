@@ -253,9 +253,37 @@ find_special_section_data_ppc64le() {
 	return
 }
 
+find_special_section_data_s390x() {
+	SPECIAL_VARS=$(readelf -wi "$VMLINUX" |
+		gawk --non-decimal-data $AWK_OPTIONS '
+		BEGIN { b = e = 0 }
+
+		# Set state if name matches
+		b == 0 && /DW_AT_name.* bug_entry[[:space:]]*$/ {b = 1; next}
+		e == 0 && /DW_AT_name.* exception_table_entry[[:space:]]*$/ {e = 1; next}
+
+		# Reset state unless this abbrev describes the struct size
+		b == 1 && !/DW_AT_byte_size/ { b = 0; next }
+		e == 1 && !/DW_AT_byte_size/ { e = 0; next }
+
+		# Now that we know the size, stop parsing for it
+		b == 1 {printf("export BUG_STRUCT_SIZE=%d\n", $4); b = 2}
+		e == 1 {printf("export EX_STRUCT_SIZE=%d\n", $4); e = 2}
+		# Bail out once we have everything
+		b == 2 && e == 2 {exit}')
+
+	[[ -n $SPECIAL_VARS ]] && eval "$SPECIAL_VARS"
+	[[ -z $EX_STRUCT_SIZE ]]  && die "can't find special struct exception_table_entry size"
+
+	return
+}
+
 find_special_section_data() {
 	if [[ "$ARCH" = "ppc64le" ]]; then
 		find_special_section_data_ppc64le
+		return
+	elif [[ "$ARCH" = "s390x" ]] ; then
+		find_special_section_data_s390x
 		return
 	fi
 
@@ -682,6 +710,8 @@ cp -LR "$DATADIR/patch" "$TEMPDIR" || die
 
 if [[ "$ARCH" = "ppc64le" ]]; then
 	ARCH_KCFLAGS="-mcmodel=large -fplugin=$PLUGINDIR/ppc64le-plugin.so"
+elif [[ "$ARCH" = "s390x" ]] ; then
+	ARCH_KCFLAGS="-fPIC -mno-pic-data-is-text-relative"
 fi
 
 export KCFLAGS="-I$DATADIR/patch -ffunction-sections -fdata-sections $ARCH_KCFLAGS"

@@ -12,6 +12,9 @@ SOURCES = create-diff-object.c kpatch-elf.c \
 ifeq ($(ARCH),x86_64)
 SOURCES += insn/insn.c insn/inat.c
 INSN     = insn/insn.o insn/inat.o
+else ifeq ($(ARCH),s390x)
+SOURCES += insn/insn.c insn/inat.c
+INSN     = insn/insn.o insn/inat.o
 else ifeq ($(ARCH),ppc64le)
 SOURCES += gcc-plugins/ppc64le-plugin.c
 PLUGIN   = gcc-plugins/ppc64le-plugin.so
