@@ -67,25 +67,25 @@ struct kpatch_post_unpatch {
 
 #define KPATCH_PRE_PATCH_HOOK(_fn) \
 	static inline kpatch_pre_patchcall_t __pre_patchtest(void) { return _fn; } \
-	struct kpatch_pre_patch kpatch_pre_patch_data_##_fn __section(.kpatch.hooks.pre_patch) = { \
+	static struct kpatch_pre_patch kpatch_pre_patch_data __section(.kpatch.hooks.pre_patch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
 #define KPATCH_POST_PATCH_HOOK(_fn) \
 	static inline kpatch_post_patchcall_t __post_patchtest(void) { return _fn; } \
-	struct kpatch_post_patch kpatch_post_patch_data_##_fn __section(.kpatch.hooks.post_patch) = { \
+	static struct kpatch_post_patch kpatch_post_patch_data __section(.kpatch.hooks.post_patch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
 #define KPATCH_PRE_UNPATCH_HOOK(_fn) \
 	static inline kpatch_pre_unpatchcall_t __pre_unpatchtest(void) { return _fn; } \
-	struct kpatch_pre_unpatch kpatch_pre_unpatch_data_##_fn __section(.kpatch.hooks.pre_unpatch) = { \
+	static struct kpatch_pre_unpatch kpatch_pre_unpatch_data __section(.kpatch.hooks.pre_unpatch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
 #define KPATCH_POST_UNPATCH_HOOK(_fn) \
 	static inline kpatch_post_unpatchcall_t __post_unpatchtest(void) { return _fn; } \
-	struct kpatch_post_unpatch kpatch_post_unpatch_data_##_fn __section(.kpatch.hooks.post_unpatch) = { \
+	static struct kpatch_post_unpatch kpatch_post_unpatch_data __section(.kpatch.hooks.post_unpatch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};

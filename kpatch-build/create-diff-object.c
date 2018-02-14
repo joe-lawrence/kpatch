@@ -1376,17 +1376,6 @@ static int kpatch_include_hook_elements(struct kpatch_elf *kelf)
 	};
 	char **hook_section;
 
-	static char *hook_func_ptrs[] = {
-		"kpatch_load_data",
-		"kpatch_unload_data",
-		"kpatch_pre_patch_data",
-		"kpatch_post_patch_data",
-		"kpatch_pre_unpatch_data",
-		"kpatch_post_unpatch_data",
-		NULL,
-	};
-	char **hook_func_ptr;
-
 	/* include load/unload sections */
 	list_for_each_entry(sec, &kelf->sections, list) {
 
@@ -1415,13 +1404,12 @@ static int kpatch_include_hook_elements(struct kpatch_elf *kelf)
 		}
 	}
 
-	/*
-	 * Strip temporary global load/unload function pointer objects
-	 * used by the kpatch_* hook macros.
-	 */
+	/* Strip temporary global structures used by the hook macros. */
 	list_for_each_entry(sym, &kelf->symbols, list) {
-		for (hook_func_ptr = hook_func_ptrs; *hook_func_ptr; hook_func_ptr++) {
-			if (!strcmp(*hook_func_ptr, sym->name)) {
+		if (!sym->sec)
+			continue;
+		for (hook_section = hook_sections; *hook_section; hook_section++) {
+			if (!strcmp(*hook_section, sym->sec->name)) {
 				sym->include = 0;
 				break;
 			}
