@@ -49,20 +49,20 @@ struct kpatch_patch_hook {
 };
 
 struct klp_object *obj;
-struct kpatch_pre_patch_hook {
-	int (*hook)(struct klp_object *obj);
+struct kpatch_pre_patch_callback {
+	int (*callback)(struct klp_object *obj);
 	char *objname;
 };
-struct kpatch_post_patch_hook {
-	void (*hook)(struct klp_object *obj);
+struct kpatch_post_patch_callback {
+	void (*callback)(struct klp_object *obj);
 	char *objname;
 };
-struct kpatch_pre_unpatch_hook {
-	void (*hook)(struct klp_object *obj);
+struct kpatch_pre_unpatch_callback {
+	void (*callback)(struct klp_object *obj);
 	char *objname;
 };
-struct kpatch_post_unpatch_hook {
-	void (*hook)(struct klp_object *obj);
+struct kpatch_post_unpatch_callback {
+	void (*callback)(struct klp_object *obj);
 	char *objname;
 };
 

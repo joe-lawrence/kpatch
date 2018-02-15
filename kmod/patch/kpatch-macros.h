@@ -28,14 +28,14 @@
 	void *__kpatch_ignore_func_##_fn __section(.kpatch.ignore.functions) = _fn;
 
 
-/* Support for livepatch callback hooks */
+/* Support for livepatch callbacks */
 #if IS_ENABLED(CONFIG_LIVEPATCH)
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
-#  define HAS_LIVEPATCH_HOOKS
+#  define HAS_LIVEPATCH_CALLBACKS
 # endif
 #endif
 
-#ifdef HAS_LIVEPATCH_HOOKS
+#ifdef HAS_LIVEPATCH_CALLBACKS
 
 #include <linux/livepatch.h>
 
@@ -65,32 +65,32 @@ struct kpatch_post_unpatch {
 };
 
 
-#define KPATCH_PRE_PATCH_HOOK(_fn) \
+#define KPATCH_PRE_PATCH_CALLBACK(_fn) \
 	static inline kpatch_pre_patchcall_t __pre_patchtest(void) { return _fn; } \
-	static struct kpatch_pre_patch kpatch_pre_patch_data __section(.kpatch.hooks.pre_patch) __used = { \
+	static struct kpatch_pre_patch kpatch_pre_patch_data __section(.kpatch.callbacks.pre_patch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
-#define KPATCH_POST_PATCH_HOOK(_fn) \
+#define KPATCH_POST_PATCH_CALLBACK(_fn) \
 	static inline kpatch_post_patchcall_t __post_patchtest(void) { return _fn; } \
-	static struct kpatch_post_patch kpatch_post_patch_data __section(.kpatch.hooks.post_patch) __used = { \
+	static struct kpatch_post_patch kpatch_post_patch_data __section(.kpatch.callbacks.post_patch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
-#define KPATCH_PRE_UNPATCH_HOOK(_fn) \
+#define KPATCH_PRE_UNPATCH_CALLBACK(_fn) \
 	static inline kpatch_pre_unpatchcall_t __pre_unpatchtest(void) { return _fn; } \
-	static struct kpatch_pre_unpatch kpatch_pre_unpatch_data __section(.kpatch.hooks.pre_unpatch) __used = { \
+	static struct kpatch_pre_unpatch kpatch_pre_unpatch_data __section(.kpatch.callbacks.pre_unpatch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
-#define KPATCH_POST_UNPATCH_HOOK(_fn) \
+#define KPATCH_POST_UNPATCH_CALLBACK(_fn) \
 	static inline kpatch_post_unpatchcall_t __post_unpatchtest(void) { return _fn; } \
-	static struct kpatch_post_unpatch kpatch_post_unpatch_data __section(.kpatch.hooks.post_unpatch) __used = { \
+	static struct kpatch_post_unpatch kpatch_post_unpatch_data __section(.kpatch.callbacks.post_unpatch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
 
-#else /* HAS_LIVEPATCH_HOOKS */
+#else /* HAS_LIVEPATCH_CALLBACKS */
 
 typedef void (*kpatch_loadcall_t)(void);
 typedef void (*kpatch_unloadcall_t)(void);
@@ -140,7 +140,7 @@ struct kpatch_unload {
 		.objname = NULL \
 	};
 
-#endif /* HAS_LIVEPATCH_HOOKS */
+#endif /* HAS_LIVEPATCH_CALLBACKS */
 
 /*
  * KPATCH_FORCE_UNSAFE macro

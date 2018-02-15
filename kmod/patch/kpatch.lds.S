@@ -30,28 +30,28 @@ SECTIONS
     QUAD(0);
   }
 #else
-  .kpatch.hooks.pre_patch : {
-    __kpatch_hooks_pre_patch = . ;
-    *(.kpatch.hooks.pre_patch)
-    __kpatch_hooks_pre_patch_end = . ;
+  .kpatch.callbacks.pre_patch : {
+    __kpatch_callbacks_pre_patch = . ;
+    *(.kpatch.callbacks.pre_patch)
+    __kpatch_callbacks_pre_patch_end = . ;
     QUAD(0);
   }
-  .kpatch.hooks.post_patch : {
-    __kpatch_hooks_post_patch = . ;
-    *(.kpatch.hooks.post_patch)
-    __kpatch_hooks_post_patch_end = . ;
+  .kpatch.callbacks.post_patch : {
+    __kpatch_callbacks_post_patch = . ;
+    *(.kpatch.callbacks.post_patch)
+    __kpatch_callbacks_post_patch_end = . ;
     QUAD(0);
   }
-  .kpatch.hooks.pre_unpatch : {
-    __kpatch_hooks_pre_unpatch = . ;
-    *(.kpatch.hooks.pre_unpatch)
-    __kpatch_hooks_pre_unpatch_end = . ;
+  .kpatch.callbacks.pre_unpatch : {
+    __kpatch_callbacks_pre_unpatch = . ;
+    *(.kpatch.callbacks.pre_unpatch)
+    __kpatch_callbacks_pre_unpatch_end = . ;
     QUAD(0);
   }
-  .kpatch.hooks.post_unpatch : {
-    __kpatch_hooks_post_unpatch = . ;
-    *(.kpatch.hooks.post_unpatch)
-    __kpatch_hooks_post_unpatch_end = . ;
+  .kpatch.callbacks.post_unpatch : {
+    __kpatch_callbacks_post_unpatch = . ;
+    *(.kpatch.callbacks.post_unpatch)
+    __kpatch_callbacks_post_unpatch_end = . ;
     QUAD(0);
   }
 #endif

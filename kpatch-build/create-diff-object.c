@@ -1352,48 +1352,48 @@ static void kpatch_include_standard_elements(struct kpatch_elf *kelf)
 	list_entry(kelf->symbols.next, struct symbol, list)->include = 1;
 }
 
-static int kpatch_include_hook_elements(struct kpatch_elf *kelf)
+static int kpatch_include_callback_elements(struct kpatch_elf *kelf)
 {
 	struct section *sec;
 	struct symbol *sym;
 	struct rela *rela;
 	int found = 0;
 
-	static char *hook_sections[] = {
+	static char *callback_sections[] = {
 		".kpatch.hooks.load",
 		".kpatch.hooks.unload",
 		".rela.kpatch.hooks.load",
 		".rela.kpatch.hooks.unload",
-		".kpatch.hooks.pre_patch",
-		".kpatch.hooks.post_patch",
-		".kpatch.hooks.pre_unpatch",
-		".kpatch.hooks.post_unpatch",
-		".rela.kpatch.hooks.pre_patch",
-		".rela.kpatch.hooks.post_patch",
-		".rela.kpatch.hooks.pre_unpatch",
-		".rela.kpatch.hooks.post_unpatch",
+		".kpatch.callbacks.pre_patch",
+		".kpatch.callbacks.post_patch",
+		".kpatch.callbacks.pre_unpatch",
+		".kpatch.callbacks.post_unpatch",
+		".rela.kpatch.callbacks.pre_patch",
+		".rela.kpatch.callbacks.post_patch",
+		".rela.kpatch.callbacks.pre_unpatch",
+		".rela.kpatch.callbacks.post_unpatch",
 		NULL,
 	};
-	char **hook_section;
+	char **callback_section;
 
 	/* include load/unload sections */
 	list_for_each_entry(sec, &kelf->sections, list) {
 
-		for (hook_section = hook_sections; *hook_section; hook_section++) {
+		for (callback_section = callback_sections; *callback_section; callback_section++) {
 
-			if (strcmp(*hook_section, sec->name))
+			if (strcmp(*callback_section, sec->name))
 				continue;
 
 			sec->include = 1;
 			found = 1;
 			if (is_rela_section(sec)) {
-				/* include hook dependencies */
+				/* include callback dependencies */
 				rela = list_entry(sec->relas.next,
 			                         struct rela, list);
 				sym = rela->sym;
-				log_normal("found hook: %s\n",sym->name);
+				log_normal("found callback: %s\n",sym->name);
 				kpatch_include_symbol(sym, 0);
-				/* strip the hook symbol */
+				/* strip the callback symbol */
 				sym->include = 0;
 				sym->sec->sym = NULL;
 				/* use section symbol instead */
@@ -1404,12 +1404,12 @@ static int kpatch_include_hook_elements(struct kpatch_elf *kelf)
 		}
 	}
 
-	/* Strip temporary global structures used by the hook macros. */
+	/* Strip temporary global structures used by the callback macros. */
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		if (!sym->sec)
 			continue;
-		for (hook_section = hook_sections; *hook_section; hook_section++) {
-			if (!strcmp(*hook_section, sym->sec->name)) {
+		for (callback_section = callback_sections; *callback_section; callback_section++) {
+			if (!strcmp(*callback_section, sym->sec->name)) {
 				sym->include = 0;
 				break;
 			}
@@ -2261,7 +2261,7 @@ static void kpatch_create_patches_sections(struct kpatch_elf *kelf,
 
 			/*
 			 * Convert global symbols to local so other objects in
-			 * the patch module (like the patch hook object's init
+			 * the patch module (like the patch callback object's init
 			 * code) won't link to this function and call it before
 			 * its relocations have been applied.
 			 */
@@ -2585,30 +2585,30 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 	krela_sec->sh.sh_size = krela_sec->data->d_size;
 }
 
-static void kpatch_create_hooks_objname_rela(struct kpatch_elf *kelf, char *objname)
+static void kpatch_create_callbacks_objname_rela(struct kpatch_elf *kelf, char *objname)
 {
 	struct section *sec;
 	struct rela *rela;
 	struct symbol *strsym;
 	int objname_offset;
 
-	struct hook { char *name; int offset; };
-	static struct hook hooks[] = {
+	struct callback { char *name; int offset; };
+	static struct callback callbacks[] = {
 		{ .name = ".rela.kpatch.hooks.load",
 		  .offset =  offsetof(struct kpatch_patch_hook, objname) },
 		{ .name = ".rela.kpatch.hooks.unload",
 		  .offset = offsetof(struct kpatch_patch_hook, objname) },
-		{ .name = ".rela.kpatch.hooks.pre_patch",
-		  .offset = offsetof(struct kpatch_pre_patch_hook, objname) },
-		{ .name = ".rela.kpatch.hooks.post_patch",
-		  .offset = offsetof(struct kpatch_post_patch_hook, objname) },
-		{ .name = ".rela.kpatch.hooks.pre_unpatch",
-		  .offset = offsetof(struct kpatch_pre_unpatch_hook, objname) },
-		{ .name = ".rela.kpatch.hooks.post_unpatch",
-		  .offset = offsetof(struct kpatch_post_patch_hook, objname) },
+		{ .name = ".rela.kpatch.callbacks.pre_patch",
+		  .offset = offsetof(struct kpatch_pre_patch_callback, objname) },
+		{ .name = ".rela.kpatch.callbacks.post_patch",
+		  .offset = offsetof(struct kpatch_post_patch_callback, objname) },
+		{ .name = ".rela.kpatch.callbacks.pre_unpatch",
+		  .offset = offsetof(struct kpatch_pre_unpatch_callback, objname) },
+		{ .name = ".rela.kpatch.callbacks.post_unpatch",
+		  .offset = offsetof(struct kpatch_post_patch_callback, objname) },
 		{ .name = NULL, .offset = 0 },
 	};
-	struct hook *hookp;
+	struct callback *callbackp;
 
 	/* lookup strings symbol */
 	strsym = find_symbol_by_name(&kelf->symbols, ".kpatch.strings");
@@ -2619,13 +2619,13 @@ static void kpatch_create_hooks_objname_rela(struct kpatch_elf *kelf, char *objn
 	objname_offset = offset_of_string(&kelf->strings, objname);
 
 	list_for_each_entry(sec, &kelf->sections, list) {
-		for (hookp = hooks; hookp->name; hookp++) {
-			if (!strcmp(hookp->name, sec->name)) {
+		for (callbackp = callbacks; callbackp->name; callbackp++) {
+			if (!strcmp(callbackp->name, sec->name)) {
 				ALLOC_LINK(rela, &sec->relas);
 				rela->sym = strsym;
 				rela->type = ABSOLUTE_RELA_TYPE;
 				rela->addend = objname_offset;
-				rela->offset = hookp->offset;
+				rela->offset = callbackp->offset;
 				break;
 			}
 		}
@@ -2838,7 +2838,7 @@ int main(int argc, char *argv[])
 {
 	struct kpatch_elf *kelf_base, *kelf_patched, *kelf_out;
 	struct arguments arguments;
-	int num_changed, hooks_exist, new_globals_exist;
+	int num_changed, callbacks_exist, new_globals_exist;
 	struct lookup_table *lookup;
 	struct section *sec, *symtab;
 	struct symbol *sym;
@@ -2907,7 +2907,7 @@ int main(int argc, char *argv[])
 	kpatch_include_standard_elements(kelf_patched);
 	num_changed = kpatch_include_changed_functions(kelf_patched);
 	kpatch_include_debug_sections(kelf_patched);
-	hooks_exist = kpatch_include_hook_elements(kelf_patched);
+	callbacks_exist = kpatch_include_callback_elements(kelf_patched);
 	kpatch_include_force_elements(kelf_patched);
 	new_globals_exist = kpatch_include_new_globals(kelf_patched);
 
@@ -2918,8 +2918,8 @@ int main(int argc, char *argv[])
 	kpatch_verify_patchability(kelf_patched);
 
 	if (!num_changed && !new_globals_exist) {
-		if (hooks_exist)
-			log_debug("no changed functions were found, but hooks exist\n");
+		if (callbacks_exist)
+			log_debug("no changed functions were found, but callbacks exist\n");
 		else {
 			log_debug("no changed functions were found\n");
 			return 3; /* 1 is ERROR, 2 is DIFF_FATAL */
@@ -2957,7 +2957,7 @@ int main(int argc, char *argv[])
 	kpatch_create_patches_sections(kelf_out, lookup, hint, objname);
 	kpatch_create_intermediate_sections(kelf_out, lookup, hint, objname, pmod_name);
 	kpatch_create_kpatch_arch_section(kelf_out, objname);
-	kpatch_create_hooks_objname_rela(kelf_out, objname);
+	kpatch_create_callbacks_objname_rela(kelf_out, objname);
 	kpatch_build_strings_section_data(kelf_out);
 
 	kpatch_create_mcount_sections(kelf_out);
