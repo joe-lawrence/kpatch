@@ -36,111 +36,63 @@
 #endif
 
 #ifdef HAS_LIVEPATCH_CALLBACKS
+# include <linux/livepatch.h>
+typedef struct klp_object patch_object;
+#else
+# include "kpatch.h"
+typedef struct kpatch_object patch_object;
+#endif /* HAS_LIVEPATCH_CALLBACKS */
 
-#include <linux/livepatch.h>
+typedef int (*kpatch_pre_patch_call_t)(patch_object *obj);
+typedef void (*kpatch_post_patch_call_t)(patch_object *obj);
+typedef void (*kpatch_pre_unpatch_call_t)(patch_object *obj);
+typedef void (*kpatch_post_unpatch_call_t)(patch_object *obj);
 
-typedef int (*kpatch_pre_patchcall_t)(struct klp_object *obj);
-typedef void (*kpatch_post_patchcall_t)(struct klp_object *obj);
-typedef void (*kpatch_pre_unpatchcall_t)(struct klp_object *obj);
-typedef void (*kpatch_post_unpatchcall_t)(struct klp_object *obj);
-
-struct kpatch_pre_patch {
-	kpatch_pre_patchcall_t fn;
+struct kpatch_pre_patch_callback {
+	kpatch_pre_patch_call_t fn;
 	char *objname; /* filled in by create-diff-object */
 };
 
-struct kpatch_post_patch {
-	kpatch_post_patchcall_t fn;
+struct kpatch_post_patch_callback {
+	kpatch_post_patch_call_t fn;
 	char *objname; /* filled in by create-diff-object */
 };
 
-struct kpatch_pre_unpatch {
-	kpatch_pre_unpatchcall_t fn;
+struct kpatch_pre_unpatch_callback {
+	kpatch_pre_unpatch_call_t fn;
 	char *objname; /* filled in by create-diff-object */
 };
 
-struct kpatch_post_unpatch {
-	kpatch_post_unpatchcall_t fn;
+struct kpatch_post_unpatch_callback {
+	kpatch_post_unpatch_call_t fn;
 	char *objname; /* filled in by create-diff-object */
 };
 
 
 #define KPATCH_PRE_PATCH_CALLBACK(_fn) \
-	static inline kpatch_pre_patchcall_t __pre_patchtest(void) { return _fn; } \
-	static struct kpatch_pre_patch kpatch_pre_patch_data __section(.kpatch.callbacks.pre_patch) __used = { \
+	static inline kpatch_pre_patch_call_t __pre_patchtest(void) { return _fn; } \
+	static struct kpatch_pre_patch_callback kpatch_pre_patch_data __section(.kpatch.callbacks.pre_patch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
 #define KPATCH_POST_PATCH_CALLBACK(_fn) \
-	static inline kpatch_post_patchcall_t __post_patchtest(void) { return _fn; } \
-	static struct kpatch_post_patch kpatch_post_patch_data __section(.kpatch.callbacks.post_patch) __used = { \
+	static inline kpatch_post_patch_call_t __post_patchtest(void) { return _fn; } \
+	static struct kpatch_post_patch_callback kpatch_post_patch_data __section(.kpatch.callbacks.post_patch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
 #define KPATCH_PRE_UNPATCH_CALLBACK(_fn) \
-	static inline kpatch_pre_unpatchcall_t __pre_unpatchtest(void) { return _fn; } \
-	static struct kpatch_pre_unpatch kpatch_pre_unpatch_data __section(.kpatch.callbacks.pre_unpatch) __used = { \
+	static inline kpatch_pre_unpatch_call_t __pre_unpatchtest(void) { return _fn; } \
+	static struct kpatch_pre_unpatch_callback kpatch_pre_unpatch_data __section(.kpatch.callbacks.pre_unpatch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
 #define KPATCH_POST_UNPATCH_CALLBACK(_fn) \
-	static inline kpatch_post_unpatchcall_t __post_unpatchtest(void) { return _fn; } \
-	static struct kpatch_post_unpatch kpatch_post_unpatch_data __section(.kpatch.callbacks.post_unpatch) __used = { \
+	static inline kpatch_post_unpatch_call_t __post_unpatchtest(void) { return _fn; } \
+	static struct kpatch_post_unpatch_callback kpatch_post_unpatch_data __section(.kpatch.callbacks.post_unpatch) __used = { \
 		.fn = _fn, \
 		.objname = NULL \
 	};
-
-#else /* HAS_LIVEPATCH_CALLBACKS */
-
-typedef void (*kpatch_loadcall_t)(void);
-typedef void (*kpatch_unloadcall_t)(void);
-
-struct kpatch_load {
-	kpatch_loadcall_t fn;
-	char *objname; /* filled in by create-diff-object */
-};
-
-struct kpatch_unload {
-	kpatch_unloadcall_t fn;
-	char *objname; /* filled in by create-diff-object */
-};
-
-/*
- * KPATCH_LOAD_HOOK macro
- *
- * The first line only ensures that the hook being registered has the required
- * function signature.  If not, there is compile error on this line.
- *
- * The section line declares a struct kpatch_load to be allocated in a new
- * .kpatch.hook.load section.  This kpatch_load_data symbol is later stripped
- * by create-diff-object so that it can be declared in multiple objects that
- * are later linked together, avoiding global symbol collision.  Since multiple
- * hooks can be registered, the .kpatch.hook.load section is a table of struct
- * kpatch_load elements that will be executed in series by the kpatch core
- * module at load time, assuming the kernel object (module) is currently
- * loaded; otherwise, the hook is called when module to be patched is loaded
- * via the module load notifier.
- */
-#define KPATCH_LOAD_HOOK(_fn) \
-	static inline kpatch_loadcall_t __loadtest(void) { return _fn; } \
-	struct kpatch_load kpatch_load_data __section(.kpatch.hooks.load) = { \
-		.fn = _fn, \
-		.objname = NULL \
-	};
-
-/*
- * KPATCH_UNLOAD_HOOK macro
- *
- * Same as LOAD hook with s/load/unload/
- */
-#define KPATCH_UNLOAD_HOOK(_fn) \
-	static inline kpatch_unloadcall_t __unloadtest(void) { return _fn; } \
-	struct kpatch_unload kpatch_unload_data __section(.kpatch.hooks.unload) = { \
-		.fn = _fn, \
-		.objname = NULL \
-	};
-
-#endif /* HAS_LIVEPATCH_CALLBACKS */
 
 /*
  * KPATCH_FORCE_UNSAFE macro

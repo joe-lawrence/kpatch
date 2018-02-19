@@ -43,26 +43,20 @@ struct kpatch_patch_dynrela {
 	int addend;
 };
 
-struct kpatch_patch_hook {
-	void (*hook)(void);
-	char *objname;
-};
-
-struct klp_object *obj;
 struct kpatch_pre_patch_callback {
-	int (*callback)(struct klp_object *obj);
+	int (*callback)(void *obj);
 	char *objname;
 };
 struct kpatch_post_patch_callback {
-	void (*callback)(struct klp_object *obj);
+	void (*callback)(void *obj);
 	char *objname;
 };
 struct kpatch_pre_unpatch_callback {
-	void (*callback)(struct klp_object *obj);
+	void (*callback)(void *obj);
 	char *objname;
 };
 struct kpatch_post_unpatch_callback {
-	void (*callback)(struct klp_object *obj);
+	void (*callback)(void *obj);
 	char *objname;
 };
 

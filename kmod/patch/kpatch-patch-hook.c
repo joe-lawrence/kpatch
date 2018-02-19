@@ -32,8 +32,10 @@ MODULE_PARM_DESC(replace, "replace all previously loaded patch modules");
 
 extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
 extern struct kpatch_patch_dynrela __kpatch_dynrelas[], __kpatch_dynrelas_end[];
-extern struct kpatch_patch_hook __kpatch_hooks_load[], __kpatch_hooks_load_end[];
-extern struct kpatch_patch_hook __kpatch_hooks_unload[], __kpatch_hooks_unload_end[];
+extern struct kpatch_pre_patch_callback __kpatch_callbacks_pre_patch[], __kpatch_callbacks_pre_patch_end[];
+extern struct kpatch_post_patch_callback __kpatch_callbacks_post_patch[], __kpatch_callbacks_post_patch_end[];
+extern struct kpatch_pre_unpatch_callback __kpatch_callbacks_pre_unpatch[], __kpatch_callbacks_pre_unpatch_end[];
+extern struct kpatch_post_unpatch_callback __kpatch_callbacks_post_unpatch[], __kpatch_callbacks_post_unpatch_end[];
 extern unsigned long __kpatch_force_funcs[], __kpatch_force_funcs_end[];
 extern char __kpatch_checksum[];
 
@@ -182,8 +184,10 @@ static struct kpatch_object *patch_find_or_add_object(struct list_head *head,
 	object->name = name;
 	INIT_LIST_HEAD(&object->funcs);
 	INIT_LIST_HEAD(&object->dynrelas);
-	INIT_LIST_HEAD(&object->hooks_load);
-	INIT_LIST_HEAD(&object->hooks_unload);
+	INIT_LIST_HEAD(&object->callbacks_pre_patch);
+	INIT_LIST_HEAD(&object->callbacks_post_patch);
+	INIT_LIST_HEAD(&object->callbacks_pre_unpatch);
+	INIT_LIST_HEAD(&object->callbacks_post_unpatch);
 
 	list_add_tail(&object->list, head);
 
@@ -203,7 +207,11 @@ static void patch_free_objects(void)
 	struct kpatch_object *object, *object_safe;
 	struct kpatch_func *func, *func_safe;
 	struct kpatch_dynrela *dynrela, *dynrela_safe;
-	struct kpatch_hook *hook, *hook_safe;
+
+	struct kpatch_pre_patch *pre_patch_callback, *pre_patch_callback_safe;
+	struct kpatch_post_patch *post_patch_callback, *post_patch_callback_safe;
+	struct kpatch_pre_unpatch *pre_unpatch_callback, *pre_unpatch_callback_safe;
+	struct kpatch_post_unpatch *post_unpatch_callback, *post_unpatch_callback_safe;
 
 	list_for_each_entry_safe(object, object_safe, &kpmod.objects, list) {
 		list_for_each_entry_safe(func, func_safe, &object->funcs,
@@ -216,15 +224,25 @@ static void patch_free_objects(void)
 			list_del(&dynrela->list);
 			kfree(dynrela);
 		}
-		list_for_each_entry_safe(hook, hook_safe,
-					 &object->hooks_load, list) {
-			list_del(&hook->list);
-			kfree(hook);
+		list_for_each_entry_safe(pre_patch_callback, pre_patch_callback_safe,
+					 &object->callbacks_pre_patch, list) {
+			list_del(&pre_patch_callback->list);
+			kfree(pre_patch_callback);
 		}
-		list_for_each_entry_safe(hook, hook_safe,
-					 &object->hooks_unload, list) {
-			list_del(&hook->list);
-			kfree(hook);
+		list_for_each_entry_safe(post_patch_callback, post_patch_callback_safe,
+					 &object->callbacks_post_patch, list) {
+			list_del(&post_patch_callback->list);
+			kfree(post_patch_callback);
+		}
+		list_for_each_entry_safe(pre_unpatch_callback, pre_unpatch_callback_safe,
+					 &object->callbacks_pre_unpatch, list) {
+			list_del(&pre_unpatch_callback->list);
+			kfree(pre_unpatch_callback);
+		}
+		list_for_each_entry_safe(post_unpatch_callback, post_unpatch_callback_safe,
+					 &object->callbacks_post_unpatch, list) {
+			list_del(&post_unpatch_callback->list);
+			kfree(post_unpatch_callback);
 		}
 		list_del(&object->list);
 		kobject_put(&object->kobj);
@@ -303,38 +321,84 @@ static int patch_make_dynrelas_list(struct list_head *objects)
 	return 0;
 }
 
-static int patch_make_hook_lists(struct list_head *objects)
+static int patch_make_callback_lists(struct list_head *objects)
 {
+	struct kpatch_pre_patch_callback *p_pre_patch_callback;
+	struct kpatch_post_patch_callback *p_post_patch_callback;
+	struct kpatch_pre_unpatch_callback *p_pre_unpatch_callback;
+	struct kpatch_post_unpatch_callback *p_post_unpatch_callback;
 	struct kpatch_object *object;
-	struct kpatch_patch_hook *p_hook;
-	struct kpatch_hook *hook;
 
-	for (p_hook = __kpatch_hooks_load; p_hook < __kpatch_hooks_load_end;
-	     p_hook++) {
-		object = patch_find_or_add_object(objects, p_hook->objname);
+	for (p_pre_patch_callback = __kpatch_callbacks_pre_patch;
+	     p_pre_patch_callback < __kpatch_callbacks_pre_patch_end;
+	     p_pre_patch_callback++) {
+
+		struct kpatch_pre_patch *callback;
+
+		object = patch_find_or_add_object(objects, p_pre_patch_callback->objname);
 		if (!object)
 			return -ENOMEM;
 
-		hook = kzalloc(sizeof(*hook), GFP_KERNEL);
-		if (!hook)
+		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
+		if (!callback)
 			return -ENOMEM;
 
-		hook->hook = p_hook->hook;
-		list_add_tail(&hook->list, &object->hooks_load);
+		callback->callback = (int (*)(struct kpatch_object *)) p_pre_patch_callback->callback;
+		list_add_tail(&callback->list, &object->callbacks_pre_patch);
 	}
 
-	for (p_hook = __kpatch_hooks_unload; p_hook < __kpatch_hooks_unload_end;
-	     p_hook++) {
-		object = patch_find_or_add_object(objects, p_hook->objname);
+	for (p_post_patch_callback = __kpatch_callbacks_post_patch;
+	     p_post_patch_callback < __kpatch_callbacks_post_patch_end;
+	     p_post_patch_callback++) {
+
+		struct kpatch_post_patch *callback;
+
+		object = patch_find_or_add_object(objects, p_post_patch_callback->objname);
 		if (!object)
 			return -ENOMEM;
 
-		hook = kzalloc(sizeof(*hook), GFP_KERNEL);
-		if (!hook)
+		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
+		if (!callback)
 			return -ENOMEM;
 
-		hook->hook = p_hook->hook;
-		list_add_tail(&hook->list, &object->hooks_unload);
+		callback->callback = (void (*)(struct kpatch_object *)) p_post_patch_callback->callback;
+		list_add_tail(&callback->list, &object->callbacks_post_patch);
+	}
+
+	for (p_pre_unpatch_callback = __kpatch_callbacks_pre_unpatch;
+	     p_pre_unpatch_callback < __kpatch_callbacks_pre_unpatch_end;
+	     p_pre_unpatch_callback++) {
+
+		struct kpatch_pre_unpatch *callback;
+
+		object = patch_find_or_add_object(objects, p_pre_unpatch_callback->objname);
+		if (!object)
+			return -ENOMEM;
+
+		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
+		if (!callback)
+			return -ENOMEM;
+
+		callback->callback = (void (*)(struct kpatch_object *)) p_pre_unpatch_callback->callback;
+		list_add_tail(&callback->list, &object->callbacks_pre_unpatch);
+	}
+
+	for (p_post_unpatch_callback = __kpatch_callbacks_post_unpatch;
+	     p_post_unpatch_callback < __kpatch_callbacks_post_unpatch_end;
+	     p_post_unpatch_callback++) {
+
+		struct kpatch_post_unpatch *callback;
+
+		object = patch_find_or_add_object(objects, p_post_unpatch_callback->objname);
+		if (!object)
+			return -ENOMEM;
+
+		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
+		if (!callback)
+			return -ENOMEM;
+
+		callback->callback = (void (*)(struct kpatch_object *)) p_post_unpatch_callback->callback;
+		list_add_tail(&callback->list, &object->callbacks_post_unpatch);
 	}
 	return 0;
 }
@@ -360,7 +424,7 @@ static int __init patch_init(void)
 	if (ret)
 		goto err_objects;
 
-	ret = patch_make_hook_lists(&kpmod.objects);
+	ret = patch_make_callback_lists(&kpmod.objects);
 	if (ret)
 		goto err_objects;
 

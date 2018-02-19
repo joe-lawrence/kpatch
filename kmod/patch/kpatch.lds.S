@@ -9,31 +9,18 @@ __kpatch_checksum = ADDR(.kpatch.checksum);
 
 SECTIONS
 {
-#ifdef __KPATCH_MODULE__
-  .kpatch.hooks.load : {
-    __kpatch_hooks_load = . ;
-    *(.kpatch.hooks.load)
-    __kpatch_hooks_load_end = . ;
-    /*
-     * Pad the end of the section with zeros in case the section is empty.
-     * This prevents the kernel from discarding the section at module
-     * load time. __kpatch_hooks_load_end will still point to the end of
-     * the section before the padding.  If the .kpatch.hooks.load section
-     * is empty, __kpatch_hooks_load equals __kpatch_hooks_load_end.
-     */
-    QUAD(0);
-  }
-  .kpatch.hooks.unload : {
-    __kpatch_hooks_unload = . ;
-    *(.kpatch.hooks.unload)
-    __kpatch_hooks_unload_end = . ;
-    QUAD(0);
-  }
-#else
   .kpatch.callbacks.pre_patch : {
     __kpatch_callbacks_pre_patch = . ;
     *(.kpatch.callbacks.pre_patch)
     __kpatch_callbacks_pre_patch_end = . ;
+    /*
+     * Pad the end of the section with zeros in case the section is empty.
+     * This prevents the kernel from discarding the section at module
+     * load time. __kpatch_callbacks_pre_patch_end will still point to the
+     * end of the section before the padding.  If the
+     * .kpatch.callbacks.pre_patch section is empty,
+     * __kpatch_callbacks_pre_patch equals __kpatch_callbacks_pre_patch_end.
+     */
     QUAD(0);
   }
   .kpatch.callbacks.post_patch : {
@@ -54,7 +41,6 @@ SECTIONS
     __kpatch_callbacks_post_unpatch_end = . ;
     QUAD(0);
   }
-#endif
   .kpatch.force : {
     __kpatch_force_funcs = . ;
     *(.kpatch.force)

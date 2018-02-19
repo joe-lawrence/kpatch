@@ -1360,10 +1360,6 @@ static int kpatch_include_callback_elements(struct kpatch_elf *kelf)
 	int found = 0;
 
 	static char *callback_sections[] = {
-		".kpatch.hooks.load",
-		".kpatch.hooks.unload",
-		".rela.kpatch.hooks.load",
-		".rela.kpatch.hooks.unload",
 		".kpatch.callbacks.pre_patch",
 		".kpatch.callbacks.post_patch",
 		".kpatch.callbacks.pre_unpatch",
@@ -2594,10 +2590,6 @@ static void kpatch_create_callbacks_objname_rela(struct kpatch_elf *kelf, char *
 
 	struct callback { char *name; int offset; };
 	static struct callback callbacks[] = {
-		{ .name = ".rela.kpatch.hooks.load",
-		  .offset =  offsetof(struct kpatch_patch_hook, objname) },
-		{ .name = ".rela.kpatch.hooks.unload",
-		  .offset = offsetof(struct kpatch_patch_hook, objname) },
 		{ .name = ".rela.kpatch.callbacks.pre_patch",
 		  .offset = offsetof(struct kpatch_pre_patch_callback, objname) },
 		{ .name = ".rela.kpatch.callbacks.post_patch",
