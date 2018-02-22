@@ -2565,6 +2565,15 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 			krelas[index].type = rela->type;
 			krelas[index].external = external;
 
+#if defined(__s390x__)
+                        if (rela->type == R_390_PC32DBL) {
+                                log_normal("converting rela: %s (external %d, offset %x, addend %x) from R_390_PC32DBL to R_390_PLT32DBL.\n",
+                                           rela->sym->name, external, rela->offset, rela->addend);
+                                ksyms[index].type = R_390_PLT32DBL;
+                                krelas[index].type = R_390_PLT32DBL;
+                        }
+#endif
+
 			/* add rela to fill in krelas[index].dest field */
 			ALLOC_LINK(rela2, &krela_sec->rela->relas);
 			if (sec->base->secsym)
