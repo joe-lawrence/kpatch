@@ -281,7 +281,8 @@ static int patch_set_klp_callbacks(struct klp_object *lobject)
 					lobject->name ? lobject->name : "vmlinux");
 				return -EINVAL;
 			}
-			lobject->callbacks.pre_patch = p_pre_patch_callback->callback;
+			lobject->callbacks.pre_patch =
+				(int (*)(struct klp_object *)) p_pre_patch_callback->callback;
 		}
 	}
 
@@ -294,7 +295,8 @@ static int patch_set_klp_callbacks(struct klp_object *lobject)
 					lobject->name ? lobject->name : "vmlinux");
 				return -EINVAL;
 			}
-			lobject->callbacks.post_patch = p_post_patch_callback->callback;
+			lobject->callbacks.post_patch =
+				(void (*)(struct kpatch_object *)) p_post_patch_callback->callback;
 		}
 	}
 
@@ -307,7 +309,8 @@ static int patch_set_klp_callbacks(struct klp_object *lobject)
 					lobject->name ? lobject->name : "vmlinux");
 				return -EINVAL;
 			}
-			lobject->callbacks.pre_unpatch = p_pre_unpatch_callback->callback;
+			lobject->callbacks.pre_unpatch =
+				(void (*)(struct kpatch_object *)) p_pre_unpatch_callback->callback;
 		}
 	}
 
@@ -320,7 +323,8 @@ static int patch_set_klp_callbacks(struct klp_object *lobject)
 					lobject->name ? lobject->name : "vmlinux");
 				return -EINVAL;
 			}
-			lobject->callbacks.post_unpatch = p_post_unpatch_callback->callback;
+			lobject->callbacks.post_unpatch =
+				(void (*)(struct kpatch_object *)) p_post_unpatch_callback->callback;
 		}
 	}
 

@@ -184,10 +184,6 @@ static struct kpatch_object *patch_find_or_add_object(struct list_head *head,
 	object->name = name;
 	INIT_LIST_HEAD(&object->funcs);
 	INIT_LIST_HEAD(&object->dynrelas);
-	INIT_LIST_HEAD(&object->callbacks_pre_patch);
-	INIT_LIST_HEAD(&object->callbacks_post_patch);
-	INIT_LIST_HEAD(&object->callbacks_pre_unpatch);
-	INIT_LIST_HEAD(&object->callbacks_post_unpatch);
 
 	list_add_tail(&object->list, head);
 
@@ -208,11 +204,6 @@ static void patch_free_objects(void)
 	struct kpatch_func *func, *func_safe;
 	struct kpatch_dynrela *dynrela, *dynrela_safe;
 
-	struct kpatch_pre_patch *pre_patch_callback, *pre_patch_callback_safe;
-	struct kpatch_post_patch *post_patch_callback, *post_patch_callback_safe;
-	struct kpatch_pre_unpatch *pre_unpatch_callback, *pre_unpatch_callback_safe;
-	struct kpatch_post_unpatch *post_unpatch_callback, *post_unpatch_callback_safe;
-
 	list_for_each_entry_safe(object, object_safe, &kpmod.objects, list) {
 		list_for_each_entry_safe(func, func_safe, &object->funcs,
 					 list) {
@@ -223,26 +214,6 @@ static void patch_free_objects(void)
 					 &object->dynrelas, list) {
 			list_del(&dynrela->list);
 			kfree(dynrela);
-		}
-		list_for_each_entry_safe(pre_patch_callback, pre_patch_callback_safe,
-					 &object->callbacks_pre_patch, list) {
-			list_del(&pre_patch_callback->list);
-			kfree(pre_patch_callback);
-		}
-		list_for_each_entry_safe(post_patch_callback, post_patch_callback_safe,
-					 &object->callbacks_post_patch, list) {
-			list_del(&post_patch_callback->list);
-			kfree(post_patch_callback);
-		}
-		list_for_each_entry_safe(pre_unpatch_callback, pre_unpatch_callback_safe,
-					 &object->callbacks_pre_unpatch, list) {
-			list_del(&pre_unpatch_callback->list);
-			kfree(pre_unpatch_callback);
-		}
-		list_for_each_entry_safe(post_unpatch_callback, post_unpatch_callback_safe,
-					 &object->callbacks_post_unpatch, list) {
-			list_del(&post_unpatch_callback->list);
-			kfree(post_unpatch_callback);
 		}
 		list_del(&object->list);
 		kobject_put(&object->kobj);
@@ -321,7 +292,7 @@ static int patch_make_dynrelas_list(struct list_head *objects)
 	return 0;
 }
 
-static int patch_make_callback_lists(struct list_head *objects)
+static int patch_set_callbacks(struct list_head *objects)
 {
 	struct kpatch_pre_patch_callback *p_pre_patch_callback;
 	struct kpatch_post_patch_callback *p_post_patch_callback;
@@ -333,72 +304,72 @@ static int patch_make_callback_lists(struct list_head *objects)
 	     p_pre_patch_callback < __kpatch_callbacks_pre_patch_end;
 	     p_pre_patch_callback++) {
 
-		struct kpatch_pre_patch *callback;
-
 		object = patch_find_or_add_object(objects, p_pre_patch_callback->objname);
 		if (!object)
 			return -ENOMEM;
 
-		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
-		if (!callback)
-			return -ENOMEM;
+		if (object->pre_patch_callback) {
+			pr_err("extra pre-patch callback for object: %s\n",
+				object->name ? object->name : "vmlinux");
+			return -EINVAL;
+		}
 
-		callback->callback = (int (*)(struct kpatch_object *)) p_pre_patch_callback->callback;
-		list_add_tail(&callback->list, &object->callbacks_pre_patch);
+		object->pre_patch_callback =
+			(int (*)(struct kpatch_object *)) p_pre_patch_callback->callback;
 	}
 
 	for (p_post_patch_callback = __kpatch_callbacks_post_patch;
 	     p_post_patch_callback < __kpatch_callbacks_post_patch_end;
 	     p_post_patch_callback++) {
 
-		struct kpatch_post_patch *callback;
-
 		object = patch_find_or_add_object(objects, p_post_patch_callback->objname);
 		if (!object)
 			return -ENOMEM;
 
-		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
-		if (!callback)
-			return -ENOMEM;
+		if (object->post_patch_callback) {
+			pr_err("extra post-patch callback for object: %s\n",
+				object->name ? object->name : "vmlinux");
+			return -EINVAL;
+		}
 
-		callback->callback = (void (*)(struct kpatch_object *)) p_post_patch_callback->callback;
-		list_add_tail(&callback->list, &object->callbacks_post_patch);
+		object->post_patch_callback =
+			(void (*)(struct kpatch_object *)) p_post_patch_callback->callback;
 	}
 
 	for (p_pre_unpatch_callback = __kpatch_callbacks_pre_unpatch;
 	     p_pre_unpatch_callback < __kpatch_callbacks_pre_unpatch_end;
 	     p_pre_unpatch_callback++) {
 
-		struct kpatch_pre_unpatch *callback;
-
 		object = patch_find_or_add_object(objects, p_pre_unpatch_callback->objname);
 		if (!object)
 			return -ENOMEM;
 
-		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
-		if (!callback)
-			return -ENOMEM;
+		if (object->pre_unpatch_callback) {
+			pr_err("extra pre-unpatch callback for object: %s\n",
+				object->name ? object->name : "vmlinux");
+			return -EINVAL;
+		}
 
-		callback->callback = (void (*)(struct kpatch_object *)) p_pre_unpatch_callback->callback;
-		list_add_tail(&callback->list, &object->callbacks_pre_unpatch);
+		object->pre_unpatch_callback =
+			(void (*)(struct kpatch_object *)) p_pre_unpatch_callback->callback;
 	}
 
 	for (p_post_unpatch_callback = __kpatch_callbacks_post_unpatch;
 	     p_post_unpatch_callback < __kpatch_callbacks_post_unpatch_end;
 	     p_post_unpatch_callback++) {
 
-		struct kpatch_post_unpatch *callback;
-
 		object = patch_find_or_add_object(objects, p_post_unpatch_callback->objname);
 		if (!object)
 			return -ENOMEM;
 
-		callback = kzalloc(sizeof(*callback), GFP_KERNEL);
-		if (!callback)
-			return -ENOMEM;
+		if (object->post_unpatch_callback) {
+			pr_err("extra post-unpatch callback for object: %s\n",
+				object->name ? object->name : "vmlinux");
+			return -EINVAL;
+		}
 
-		callback->callback = (void (*)(struct kpatch_object *)) p_post_unpatch_callback->callback;
-		list_add_tail(&callback->list, &object->callbacks_post_unpatch);
+		object->post_unpatch_callback =
+			(void (*)(struct kpatch_object *)) p_post_unpatch_callback->callback;
 	}
 	return 0;
 }
@@ -424,7 +395,7 @@ static int __init patch_init(void)
 	if (ret)
 		goto err_objects;
 
-	ret = patch_make_callback_lists(&kpmod.objects);
+	ret = patch_set_callbacks(&kpmod.objects);
 	if (ret)
 		goto err_objects;
 

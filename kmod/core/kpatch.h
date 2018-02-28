@@ -65,10 +65,10 @@ struct kpatch_object {
 	const char *name;
 	struct list_head funcs;
 	struct list_head dynrelas;
-	struct list_head callbacks_pre_patch;
-	struct list_head callbacks_post_patch;
-	struct list_head callbacks_pre_unpatch;
-	struct list_head callbacks_post_unpatch;
+	int (*pre_patch_callback)(struct kpatch_object *);
+	void (*post_patch_callback)(struct kpatch_object *);
+	void (*pre_unpatch_callback)(struct kpatch_object *);
+	void (*post_unpatch_callback)(struct kpatch_object *);
 
 	/* private */
 	struct module *mod;
@@ -86,26 +86,6 @@ struct kpatch_module {
 	/* private */
 	struct list_head list;
 	struct kobject kobj;
-};
-
-struct kpatch_pre_patch {
-	struct list_head list;
-	int (*callback)(struct kpatch_object *);
-};
-
-struct kpatch_post_patch {
-	struct list_head list;
-	void (*callback)(struct kpatch_object *);
-};
-
-struct kpatch_pre_unpatch {
-	struct list_head list;
-	void (*callback)(struct kpatch_object *);
-};
-
-struct kpatch_post_unpatch {
-	struct list_head list;
-	void (*callback)(struct kpatch_object *);
 };
 
 extern struct kobject *kpatch_root_kobj;

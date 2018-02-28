@@ -310,8 +310,6 @@ static int kpatch_apply_patch(void *data)
 {
 	struct kpatch_module *kpmod = data;
 	struct kpatch_func *func;
-	struct kpatch_pre_patch *pre_patch_callback;
-	struct kpatch_post_patch *post_patch_callback;
 	struct kpatch_object *object;
 	int ret;
 
@@ -323,10 +321,11 @@ static int kpatch_apply_patch(void *data)
 
 	/* run any user-defined pre-patch callbacks */
 	list_for_each_entry(object, &kpmod->objects, list) {
-		if (!kpatch_object_linked(object))
+		if (!kpatch_object_linked(object) ||
+		    !object->pre_patch_callback)
 			continue;
-		list_for_each_entry(pre_patch_callback, &object->callbacks_pre_patch, list)
-			ret = (*pre_patch_callback->callback)(object);
+
+		ret = (*object->pre_patch_callback)(object);
 #if 0
 			/* JL TODO - ignore for now */
 			if (ret)
@@ -361,10 +360,11 @@ static int kpatch_apply_patch(void *data)
 
 	/* run any user-defined post-patch callbacks */
 	list_for_each_entry(object, &kpmod->objects, list) {
-		if (!kpatch_object_linked(object))
+		if (!kpatch_object_linked(object) ||
+		    !object->post_patch_callback)
 			continue;
-		list_for_each_entry(post_patch_callback, &object->callbacks_post_patch, list)
-			(*post_patch_callback->callback)(object);
+
+		(*object->post_patch_callback)(object);
 	}
 
 	return 0;
@@ -378,8 +378,6 @@ static int kpatch_remove_patch(void *data)
 {
 	struct kpatch_module *kpmod = data;
 	struct kpatch_func *func;
-	struct kpatch_pre_unpatch *pre_unpatch_callback;
-	struct kpatch_post_unpatch *post_unpatch_callback;
 	struct kpatch_object *object;
 	int ret;
 
@@ -396,10 +394,11 @@ static int kpatch_remove_patch(void *data)
 
 	/* run any user-defined pre-unpatch callbacks */
 	list_for_each_entry(object, &kpmod->objects, list) {
-		if (!kpatch_object_linked(object))
+		if (!kpatch_object_linked(object) ||
+		    !object->pre_unpatch_callback)
 			continue;
-		list_for_each_entry(pre_unpatch_callback, &object->callbacks_pre_unpatch, list)
-			(*pre_unpatch_callback->callback)(object);
+
+		(*object->pre_unpatch_callback)(object);
 	}
 
 	/* Succeeded, remove all updating funcs from hash table */
@@ -409,10 +408,11 @@ static int kpatch_remove_patch(void *data)
 
 	/* run any user-defined post-unpatch callbacks */
 	list_for_each_entry(object, &kpmod->objects, list) {
-		if (!kpatch_object_linked(object))
+		if (!kpatch_object_linked(object) ||
+		    !object->post_unpatch_callback)
 			continue;
-		list_for_each_entry(post_unpatch_callback, &object->callbacks_post_unpatch, list)
-			(*post_unpatch_callback->callback)(object);
+
+		(*object->post_unpatch_callback)(object);
 	}
 
 	return 0;
@@ -834,8 +834,6 @@ static int kpatch_module_notify(struct notifier_block *nb, unsigned long action,
 	struct kpatch_module *kpmod;
 	struct kpatch_object *object;
 	struct kpatch_func *func;
-	struct kpatch_pre_patch *pre_patch_callback;
-	struct kpatch_post_patch *post_patch_callback;
 	int ret = 0;
 	bool found = false;
 
@@ -867,21 +865,22 @@ done:
 	pr_notice("patching newly loaded module '%s'\n", object->name);
 
 	/* run any user-defined pre-patch callbacks */
-	list_for_each_entry(pre_patch_callback, &object->callbacks_pre_patch, list)
-		ret = (*pre_patch_callback->callback)(object);
+	if (object->pre_patch_callback) {
+		ret = (*object->pre_patch_callback)(object);
 #if 0
 		/* JL TODO - ignore for now */
 		if (ret)
 			goto err;
 #endif
+	}
 
 	/* add to the global func hash */
 	list_for_each_entry(func, &object->funcs, list)
 		hash_add_rcu(kpatch_func_hash, &func->node, func->old_addr);
 
 	/* run any user-defined post-patch callbacks */
-	list_for_each_entry(post_patch_callback, &object->callbacks_post_patch, list)
-		(*post_patch_callback->callback)(object);
+	if (object->post_patch_callback)
+		(*object->post_patch_callback)(object);
 
 out:
 	up(&kpatch_mutex);
