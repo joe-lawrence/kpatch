@@ -1,0 +1,41 @@
+--- src.old/fs/proc/version.c	2019-06-11 13:41:12.471836542 -0400
++++ src/fs/proc/version.c	2019-06-11 13:47:05.387738277 -0400
+@@ -6,8 +6,38 @@
+ #include <linux/seq_file.h>
+ #include <linux/utsname.h>
+ 
++char kpatch_default[] = "kpatch-default ";
++char kpatch_alternative[] = "kpatch-alternative ";
++char *kpatch_str = kpatch_alternative;
++
++#ifdef CONFIG_X86_64
++#include <asm/alternative.h>
++
++#ifndef X86_FEATURE_ALWAYS
++#define X86_FEATURE_ALWAYS	X86_FEATURE_FPU
++#endif
++
++__used notrace static void kpatch_oldinstr(void)
++{
++	kpatch_str = kpatch_default;
++}
++
++__used notrace static void kpatch_newinstr(void)
++{
++	kpatch_str = kpatch_alternative;
++}
++#endif
++
+ static int version_proc_show(struct seq_file *m, void *v)
+ {
++
++#ifdef CONFIG_X86_64
++	alternative_call(kpatch_oldinstr, kpatch_newinstr,
++			X86_FEATURE_ALWAYS,
++			/* no input */,
++			ASM_NO_INPUT_CLOBBER("memory"));
++#endif
++	seq_printf(m, "%s", kpatch_str ? kpatch_str : "");
+ 	seq_printf(m, linux_proc_banner,
+ 		utsname()->sysname,
+ 		utsname()->release,

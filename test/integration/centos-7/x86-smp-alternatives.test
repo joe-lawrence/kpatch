@@ -1,0 +1,3 @@
+#!/bin/bash
+
+grep -vq kpatch-default /proc/version
