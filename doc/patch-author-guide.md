@@ -655,3 +655,28 @@ This could be a little confusing since one might have expected to see
 changes to all of `__tcp_mtu_to_mss()` callers (ie, it was inlined as
 requested).  In this case, a simple workaround is to specify
 `__tcp_mtu_to_mss()` as `__always_inline` to force the compiler to do so.
+
+Jump labels
+-----------
+
+When modifying a function that contains a jump label, kpatch-build may
+return an error like: `ERROR: oom_kill.o: kpatch_regenerate_special_section: 2109: Found a jump label at out_of_memory()+0x10a, using key cpusets_enabled_key.  Jump labels aren't currently supported.  Use static_key_enabled() instead.`
+
+This is due to a limitation in the kernel to process static key
+livepatch relocations (resolved by late-module patching).  Older
+versions of kpatch-build may have reported successfully building 
+kpatch module, but issue
+[#931](https://github.com/dynup/kpatch/issues/931) revealed potentially
+dangerous behavior if the static key value had been modified from its
+compiled default.
+
+The current workaround is to remove the jump label by explictly checking
+the static key:
+
+```
+/* unsupported */
+if (static_key_true(&key1))
+
+/* supported */
+if (static_key_enabled(&key1))
+```
