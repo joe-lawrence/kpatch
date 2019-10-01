@@ -701,3 +701,23 @@ correleating constprop subfunctions created by the optimization:
 ```
 The current workaround for this issue to add `__attribute__((noclone))`
 to offending functions.
+
+Sibling calls
+-------------
+
+If function A() calls function B() at the end of A() and both return similar
+data-types, GCC may deem them "sibling calls" and apply a tail call
+optimization in which A() restores the stack to is callee state before setting
+up B()'s arguments and jumping to B().
+
+This may be an issue for kpatches on PowerPC which modify only A() or B() and
+the function call crosses a kernel module boundary: the sibling call
+optimization has changed expected calling conventions and (un)patched code may
+not be similarly modified.
+
+Commit [8b952bd77130](https://github.com/dynup/kpatch/commit/8b952bd77130)
+("create-diff-object/ppc64le: Don't allow sibling calls") contains an
+excellent example and description of this problem with annotated disassembly.
+
+Adding `__attribute__((optimize("-fno-optimize-sibling-calls")))` instructs
+GCC to turn off the optimization for the given function.
