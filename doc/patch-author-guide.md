@@ -680,3 +680,24 @@ if (static_key_true(&key1))
 /* supported */
 if (static_key_enabled(&key1))
 ```
+
+Constant propagation symbol changes
+-----------------------------------
+
+GCC's constant propagation optimizations may result in kpatch-build
+errors like: `ERROR: timekeeping.o: symbol changed sections: .text.timekeeping_update.constprop.9`
+
+This is currently tracked as issue
+[#935](https://github.com/dynup/kpatch/issues/935) "duplicate" mangled
+fuctions.  In that case, readelf revealed that kpatch-build wasn't
+correleating constprop subfunctions created by the optimization:
+```
+# eu-readelf -s orig/kernel/time/timekeeping.o  | grep timekeeping_update
+  137: 0000000000000000    552 FUNC    LOCAL  DEFAULT       48 timekeeping_update.constprop.9
+  138: 0000000000000000    568 FUNC    LOCAL  DEFAULT       50 timekeeping_update.constprop.8
+# eu-readelf -s patched/kernel/time/timekeeping.o  | grep timekeeping_update
+  137: 0000000000000000    552 FUNC    LOCAL  DEFAULT       48 timekeeping_update.constprop.10
+  138: 0000000000000000    568 FUNC    LOCAL  DEFAULT       50 timekeeping_update.constprop.9
+```
+The current workaround for this issue to add `__attribute__((noclone))`
+to offending functions.
