@@ -241,11 +241,16 @@ gcc_version_check() {
 		return 1
 	fi
 
+	out="$(gcc -c -fdump-ipa-clones -o "$o" "$c" 2>&1)"
+	if [[ -z "$out" ]]; then
+		DEBUG_KCFLAGS+=" -fdump-ipa-clones"
+	fi
+
 	out="$(gcc -c -gz=none -o "$o" "$c" 2>&1)"
 	if [[ -z "$out" ]]; then
-		DEBUG_KCFLAGS="-gz=none"
+		DEBUG_KCFLAGS+=" -gz=none"
 	fi
-	rm -f "$c" "$o"
+	rm -f "$c" "$o" "$c.*.ipa-clones"
 
 	# ensure gcc version matches that used to build the kernel
 	if [[ "$gccver" != "$kgccver" ]]; then
@@ -663,7 +668,8 @@ else
 				wget -P "$TEMPDIR" "http://kojipkgs.fedoraproject.org/packages/kernel/$KVER/$KREL/src/kernel-$KVER-$KREL.src.rpm" 2>&1 | logger || die
 			else
 				command -v yumdownloader &>/dev/null || die "yumdownloader (yum-utils or dnf-utils) not installed"
-				yumdownloader --source --destdir "$TEMPDIR" "kernel$ALT-$KVER-$KREL" 2>&1 | logger || die
+				#yumdownloader --source --destdir "$TEMPDIR" "kernel$ALT-$KVER-$KREL" 2>&1 | logger || die
+				cp ~/kernel-4.18.0-135.el8.src.rpm "$TEMPDIR"
 			fi
 			SRCRPM="$TEMPDIR/kernel$ALT-$KVER-$KREL.src.rpm"
 		fi
@@ -801,16 +807,21 @@ if [[ $DEBUG -ge 4 ]]; then
 	export KPATCH_GCC_DEBUG=1
 fi
 
+mkdir -p "$TEMPDIR/orig" "$TEMPDIR/patched"
+
 echo "Building original source"
 [[ -n "$OOT_MODULE" ]] || ./scripts/setlocalversion --save-scmversion || die
 unset KPATCH_GCC_TEMPDIR
 # $TARGETS used as list, no quotes.
 # shellcheck disable=SC2086
 CROSS_COMPILE="$TOOLSDIR/kpatch-gcc " make "-j$CPUS" $TARGETS 2>&1 | logger || die
+if [[ "$DEBUG_KCFLAGS" =~ "-fdump-ipa-clones" ]]; then
+	mkdir -p "$TEMPDIR/orig/ipa-clones"
+	find . -name '*.ipa-clones' | xargs -i{} -r -n 1 cp --parents "{}" "$TEMPDIR/orig/ipa-clones"
+fi
 
 echo "Building patched source"
 apply_patches
-mkdir -p "$TEMPDIR/orig" "$TEMPDIR/patched"
 KPATCH_GCC_TEMPDIR="$TEMPDIR"
 export KPATCH_GCC_TEMPDIR
 KPATCH_GCC_SRCDIR="$SRCDIR"
@@ -820,6 +831,10 @@ export KPATCH_GCC_SRCDIR
 CROSS_COMPILE="$TOOLSDIR/kpatch-gcc " \
 	KBUILD_MODPOST_WARN=1 \
 	make "-j$CPUS" $TARGETS 2>&1 | logger || die
+if [[ "$DEBUG_KCFLAGS" =~ "-fdump-ipa-clones" ]]; then
+	mkdir -p "$TEMPDIR/patched/ipa-clones"
+	find . -name '*.ipa-clones' | xargs -i{} -r -n 1 cp --parents "{}" "$TEMPDIR/patched/ipa-clones"
+fi
 
 # source.c:(.section+0xFF): undefined reference to `symbol'
 grep "undefined reference" "$LOGFILE" | sed -r "s/^.*\`(.*)'$/\\1/" \
@@ -944,6 +959,19 @@ do
 	echo -n " $i"
 done
 echo
+
+if [[ "$DEBUG_KCFLAGS" =~ "-fdump-ipa-clones" ]]; then
+	echo "Analyzing -fdump-ipa-clones differences"
+	ANALYSIS=~/kgraft-analysis-tool/kgraft-ipa-analysis.py
+	FILES=$(diff -Nupr orig/ipa-clones/ patched/ipa-clones/ | diffstat -l -p0)
+	for file in $FILES; do
+		orig="orig/${file#*/}"
+		patched="patched/${file#*/}"
+		diff -U0 \
+			--label "$orig"    <($ANALYSIS <(echo $orig) | sed 's/object file: .*ipa-clones\///; s/:[0-9]\+:[0-9]\+//g; s/\(Function: [A-Za-z0-9_]\)*\/[0-9]\+/\1/g; /^@@/d') \
+			--label "$patched" <($ANALYSIS <(echo $patched) | sed 's/object file: .*ipa-clones\///; s/:[0-9]\+:[0-9]\+//g; s/\(Function: [A-Za-z0-9_]\)*\/[0-9]\+/\1/g; /^@@/d') 2>&1 | tee "$CACHEDIR/ipa-clones.diff"
+	done
+fi
 
 export KCFLAGS="-I$DATADIR/patch $ARCH_KCFLAGS"
 if "$KPATCH_MODULE"; then
