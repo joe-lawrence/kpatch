@@ -23,6 +23,7 @@
 # This is the kpatch user script that manages installing, loading, and
 # displaying information about kernel patch modules installed on the system.
 
+COMMAND_LINE="$@"
 INSTALLDIR=/var/lib/kpatch
 SCRIPTDIR="$(readlink -f "$(dirname "$(type -p "$0")")")"
 VERSION="0.8.0"
@@ -62,12 +63,18 @@ usage () {
 	exit 1
 }
 
+
+log() {
+	logger --tag="kpatch" "$COMMAND_LINE $*" &> /dev/null
+}
+
 warn() {
 	echo "kpatch: $*" >&2
 }
 
 die() {
 	warn "$@"
+	log "died: $@"
 	exit 1
 }
 
@@ -409,6 +416,7 @@ case "$1" in
 		load_module "$MODULE" || die "failed to load module $PATCH"
 		;;
 	esac
+	log "success"
 	;;
 
 "unload")
@@ -424,6 +432,7 @@ case "$1" in
 		unload_module "$(basename "$2")" || die "failed to unload module $2"
 		;;
 	esac
+	log "success"
 	;;
 
 "install")
@@ -457,6 +466,7 @@ case "$1" in
 	mkdir -p "$INSTALLDIR/$KVER" || die "failed to create install directory"
 	cp -f "$PATCH" "$INSTALLDIR/$KVER" || die "failed to install module $PATCH"
 	command -v systemctl > /dev/null 2>&1 && systemctl enable kpatch.service
+	log "success"
 	;;
 
 "uninstall")
@@ -497,6 +507,7 @@ case "$1" in
 
 	echo "uninstalling $PATCH ($KVER)"
 	rm -f "$MODULE" || die "failed to uninstall module $PATCH"
+	log "success"
 	;;
 
 "list")
