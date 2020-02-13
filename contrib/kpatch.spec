@@ -8,7 +8,7 @@ Release: 1%{?dist}
 Source0: %{name}-%{version}.tar.gz
 
 Requires: kmod bash
-BuildRequires: gcc kernel-devel elfutils elfutils-devel
+BuildRequires: gcc kernel-devel elfutils-libelf-devel
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 # needed for the kernel specific module

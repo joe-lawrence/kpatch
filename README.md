@@ -34,7 +34,7 @@ Install the dependencies for compiling kpatch:
 
 ```bash
 UNAME=$(uname -r)
-sudo dnf install gcc kernel-devel-${UNAME%.*} elfutils elfutils-devel
+sudo dnf install gcc kernel-devel-${UNAME%.*} elfutils-libelf-devel
 ```
 
 Install the dependencies for the "kpatch-build" command:
@@ -61,7 +61,7 @@ Install the dependencies for compiling kpatch:
 
 ```bash
 UNAME=$(uname -r)
-sudo yum install gcc kernel-devel-${UNAME%.*} elfutils elfutils-devel
+sudo yum install gcc kernel-devel-${UNAME%.*} elfutils-libelf-devel
 ```
 
 Install the dependencies for the "kpatch-build" command:
@@ -95,7 +95,7 @@ Install the dependencies for compiling kpatch:
 
 ```bash
 UNAME=$(uname -r)
-sudo yum install gcc kernel-devel-${UNAME%.*} elfutils elfutils-devel
+sudo yum install gcc kernel-devel-${UNAME%.*} elfutils-libelf-devel
 ```
 
 Install the dependencies for the "kpatch-build" command:
@@ -125,7 +125,7 @@ Install the dependencies for compiling kpatch:
 
 ```bash
 UNAME=$(uname -r)
-sudo yum install gcc kernel-devel-${UNAME%.*} elfutils elfutils-devel
+sudo yum install gcc kernel-devel-${UNAME%.*} elfutils-libelf-devel
 ```
 
 Install the dependencies for the "kpatch-build" command:
@@ -163,7 +163,7 @@ apt-get install make gcc libelf-dev
 Install the dependencies for the "kpatch-build" command:
 
 ```bash
-apt-get install dpkg-dev devscripts elfutils
+apt-get install dpkg-dev devscripts libelf-dev
 apt-get build-dep linux
 
 # required on ppc64le
