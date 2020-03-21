@@ -92,6 +92,9 @@
  *  done, the scaffold structs are no longer needed.
  */
 
+#ifdef HAVE_KLP_SPLIT
+static struct klp_object *lobject;
+#endif
 static struct klp_patch *lpatch;
 
 static LIST_HEAD(patch_objects);
@@ -121,6 +124,13 @@ static struct patch_object *patch_alloc_new_object(const char *name)
 {
 	struct patch_object *object;
 
+#ifdef HAVE_KLP_SPLIT
+	if (patch_objects_nr > 0) {
+		pr_err("extra object detected: %s\n",
+		        object->name ? object->name : "vmlinux");
+	}
+#endif
+
 	object = kzalloc(sizeof(*object), GFP_KERNEL);
 	if (!object)
 		return NULL;
@@ -132,6 +142,9 @@ static struct patch_object *patch_alloc_new_object(const char *name)
 		object->name = name;
 	list_add(&object->list, &patch_objects);
 	patch_objects_nr++;
+
+pr_info("%s: %s: %s\n", THIS_MODULE->name, __func__, name);
+
 	return object;
 }
 
@@ -215,24 +228,32 @@ static void patch_free_scaffold(void) {
 	}
 }
 
+static void patch_free_objects(struct klp_object *object)
+{
+	struct klp_object *obj;
+
+	for (obj=object; obj && obj->funcs; obj++) {
+		if (obj->funcs)
+			kfree(obj->funcs);
+#ifndef HAVE_ELF_RELOCS
+		if (obj->relocs)
+			kfree(obj->relocs);
+#endif
+		obj++;
+	}
+
+	kfree(object);
+}
+
+#ifndef HAVE_KLP_SPLIT
 static void patch_free_livepatch(struct klp_patch *patch)
 {
-	struct klp_object *object;
-
 	if (patch) {
-		for (object = patch->objs; object && object->funcs; object++) {
-			if (object->funcs)
-				kfree(object->funcs);
-#ifndef HAVE_ELF_RELOCS
-			if (object->relocs)
-				kfree(object->relocs);
-#endif
-		}
-		if (patch->objs)
-			kfree(patch->objs);
+		patch_free_objects(patch->objs);
 		kfree(patch);
 	}
 }
+#endif
 
 extern struct kpatch_pre_patch_callback __kpatch_callbacks_pre_patch[], __kpatch_callbacks_pre_patch_end[];
 extern struct kpatch_post_patch_callback __kpatch_callbacks_post_patch[], __kpatch_callbacks_post_patch_end[];
@@ -334,6 +355,12 @@ extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
 extern struct kpatch_patch_dynrela __kpatch_dynrelas[], __kpatch_dynrelas_end[];
 #endif
 
+#ifdef HAVE_KLP_SPLIT
+#ifndef __KPATCH_OBJ_NAME__
+#include "livepatch-obj-names.h"
+#endif
+#endif
+
 static int __init patch_init(void)
 {
 	struct kpatch_patch_func *kfunc;
@@ -374,17 +401,22 @@ static int __init patch_init(void)
 	/* past this point, only possible return code is -ENOMEM */
 	ret = -ENOMEM;
 
+	lobjects = kzalloc(sizeof(*lobjects) * (patch_objects_nr+1),
+			   GFP_KERNEL);
+	if (!lobjects)
+		goto out;
+
 	/* allocate and fill livepatch structures */
 	lpatch = kzalloc(sizeof(*lpatch), GFP_KERNEL);
 	if (!lpatch)
 		goto out;
 
-	lobjects = kzalloc(sizeof(*lobjects) * (patch_objects_nr+1),
-			   GFP_KERNEL);
-	if (!lobjects)
-		goto out;
-	lpatch->mod = THIS_MODULE;
+#ifdef HAVE_KLP_SPLIT
+	lpatch->obj = lobjects;
+#else
 	lpatch->objs = lobjects;
+	lpatch->mod = THIS_MODULE;
+#endif
 #if defined(__powerpc64__) && defined(HAVE_IMMEDIATE)
 	lpatch->immediate = true;
 #endif
@@ -393,6 +425,17 @@ static int __init patch_init(void)
 	list_for_each_entry(object, &patch_objects, list) {
 		lobject = &lobjects[i];
 		lobject->name = object->name;
+#ifdef HAVE_KLP_SPLIT
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+		lobject->patch_name = STR(__KPATCH_PATCH_NAME__);
+		lobject->mod = THIS_MODULE;
+#ifdef __KPATCH_OBJ_NAME__	/* sub-module */
+		lobject->name = STR(__KPATCH_OBJ_NAME__);
+#else				/* main-module */
+		lobject->name = NULL;
+#endif
+#endif
 		lfuncs = kzalloc(sizeof(struct klp_func) *
 		                 (object->funcs_nr+1), GFP_KERNEL);
 		if (!lfuncs)
@@ -447,6 +490,26 @@ static int __init patch_init(void)
 	 */
 	patch_free_scaffold();
 
+#ifdef HAVE_KLP_SPLIT
+#ifdef __KPATCH_OBJ_NAME__
+	lobject = &lobjects[0];
+	ret = klp_add_object(lobject);
+	if (ret) {
+		patch_free_objects(lobject);
+		return ret;
+	}
+#else
+	lpatch->obj_names = obj_names;
+	ret = klp_enable_patch(lpatch);
+
+	if (ret) {
+		/* TODO */
+		return ret;
+	}
+#endif
+
+#else
+
 #ifndef HAVE_SIMPLE_ENABLE
 	ret = klp_register_patch(lpatch);
 	if (ret) {
@@ -463,20 +526,27 @@ static int __init patch_init(void)
 		patch_free_livepatch(lpatch);
 		return ret;
 	}
+#endif /* HAVE_KLP_SPLIT */
 
 	return 0;
 out:
+#ifndef HAVE_KLP_SPLIT
 	patch_free_livepatch(lpatch);
+#endif
 	patch_free_scaffold();
 	return ret;
 }
 
 static void __exit patch_exit(void)
 {
-#ifndef HAVE_SIMPLE_ENABLE
+#ifdef HAVE_KLP_SPLIT
+	patch_free_objects(lobject);
+#else
+# ifndef HAVE_SIMPLE_ENABLE
 	WARN_ON(klp_unregister_patch(lpatch));
-#endif
+# endif
 	patch_free_livepatch(lpatch);
+#endif
 }
 
 module_init(patch_init);

@@ -957,6 +957,7 @@ if [[ -z "$USERSRCDIR" ]] && [[ "$DISTRO" = ubuntu ]]; then
 	echo "#define UTS_UBUNTU_RELEASE_ABI $UBUNTU_ABI" >> "$SRCDIR"/include/generated/utsrelease.h
 fi
 
+SAVED_KCPPFLAGS="$KCPPFLAGS"
 # $KPATCH_LDFLAGS and result of find used as list, no quotes.
 # shellcheck disable=SC2086,SC2046
 for obj_path in "${objnames[@]}"; do
@@ -981,6 +982,10 @@ for obj_path in "${objnames[@]}"; do
 		cp "${patch_dir}/tmp_output.o" "${patch_dir}/output.o" || die
 	fi
 
+	# Avoid MODPOST warning with a dummy .cmd file:
+	# WARNING: could not find .output.o.cmd for output.o
+	echo -e "\n" > "${patch_dir}/.output.o.cmd"
+
 	cd "${patch_dir}" || die
 	if [[ -z "$OOT_MODULE" ]]; then
 		KPATCH_BUILD="$SRCDIR"
@@ -989,9 +994,23 @@ for obj_path in "${objnames[@]}"; do
 	fi
 
 	if [ "${obj}" == "vmlinux" ]; then
-		modulename="${MODNAME}"
+		modulename="${MODNAME//-/_}"
+		export KCPPFLAGS="$SAVED_KCPPFLAGS -DHAVE_KLP_SPLIT -D__KPATCH_PATCH_NAME__=${MODNAME//-/_}"
+
+		# HACK - create a livepatch-obj-names.h file which will
+		# include the main livepatch module's obj_names[].
+		echo -e "static char *obj_names[] = {" >> livepatch-obj-names.h
+		for o in "${objnames[@]}"; do
+			o="$(basename $o)"
+			[[ "$o" == "vmlinux" ]] && continue
+			echo -e "\t\"${o%.ko}\"," >> livepatch-obj-names.h
+		done
+		echo -e "\tNULL" >> livepatch-obj-names.h
+		echo -e "};" >> livepatch-obj-names.h
+
 	else
-		modulename="${obj%.ko}_${MODNAME}"
+		modulename="${MODNAME//-/_}__"${obj%.ko}
+		export KCPPFLAGS="$SAVED_KCPPFLAGS -DHAVE_KLP_SPLIT -D__KPATCH_OBJ_NAME__=${obj%.ko} -D__KPATCH_PATCH_NAME__=${MODNAME//-/_}"
 	fi
 
 	KPATCH_BUILD="$KPATCH_BUILD" KPATCH_NAME="${modulename}" \
