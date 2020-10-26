@@ -1,0 +1,13 @@
+Disabled due to https:/github.com/dynup/kpatch/issues/940
+---
+diff -Nupr src.orig/net/core/dev.c src/net/core/dev.c
+--- src.orig/net/core/dev.c	2020-10-21 11:10:12.197756645 -0400
++++ src/net/core/dev.c	2020-10-21 11:10:21.960117333 -0400
+@@ -4974,6 +4974,7 @@ skip_classify:
+ 		case RX_HANDLER_PASS:
+ 			break;
+ 		default:
++			printk("BUG!\n");
+ 			BUG();
+ 		}
+ 	}
