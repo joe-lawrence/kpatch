@@ -1,6 +1,6 @@
 diff -Nupr src.orig/fs/proc/cmdline.c src/fs/proc/cmdline.c
---- src.orig/fs/proc/cmdline.c	2020-10-21 11:10:09.397653191 -0400
-+++ src/fs/proc/cmdline.c	2020-10-21 11:11:05.973743491 -0400
+--- src.orig/fs/proc/cmdline.c	2021-02-09 11:18:02.012572462 -0500
++++ src/fs/proc/cmdline.c	2021-02-09 11:18:49.409889894 -0500
 @@ -17,3 +17,10 @@ static int __init proc_cmdline_init(void
  	return 0;
  }
@@ -13,8 +13,8 @@ diff -Nupr src.orig/fs/proc/cmdline.c src/fs/proc/cmdline.c
 +		printk("hello there!\n");
 +}
 diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
---- src.orig/fs/proc/meminfo.c	2020-10-21 11:10:09.397653191 -0400
-+++ src/fs/proc/meminfo.c	2020-10-21 11:11:05.974743527 -0400
+--- src.orig/fs/proc/meminfo.c	2021-02-09 11:18:02.013572469 -0500
++++ src/fs/proc/meminfo.c	2021-02-09 11:18:49.410889901 -0500
 @@ -21,6 +21,8 @@
  #include <asm/pgtable.h>
  #include "internal.h"
@@ -25,8 +25,8 @@ diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
  {
  }
 @@ -57,6 +59,7 @@ static int meminfo_proc_show(struct seq_
- 	sreclaimable = global_node_page_state(NR_SLAB_RECLAIMABLE);
- 	sunreclaim = global_node_page_state(NR_SLAB_UNRECLAIMABLE);
+ 	sreclaimable = global_node_page_state_pages(NR_SLAB_RECLAIMABLE_B);
+ 	sunreclaim = global_node_page_state_pages(NR_SLAB_UNRECLAIMABLE_B);
  
 +	kpatch_print_message();
  	show_val_kb(m, "MemTotal:       ", i.totalram);

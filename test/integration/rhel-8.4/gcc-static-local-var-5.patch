@@ -1,7 +1,7 @@
 diff -Nupr src.orig/kernel/audit.c src/kernel/audit.c
---- src.orig/kernel/audit.c	2020-10-21 11:10:09.739665827 -0400
-+++ src/kernel/audit.c	2020-10-21 11:10:44.069934217 -0400
-@@ -322,6 +322,12 @@ void audit_panic(const char *message)
+--- src.orig/kernel/audit.c	2021-02-09 11:18:02.882578289 -0500
++++ src/kernel/audit.c	2021-02-09 11:18:28.987753122 -0500
+@@ -327,6 +327,12 @@ void audit_panic(const char *message)
  	}
  }
  
@@ -14,7 +14,7 @@ diff -Nupr src.orig/kernel/audit.c src/kernel/audit.c
  static inline int audit_rate_check(void)
  {
  	static unsigned long	last_check = 0;
-@@ -332,6 +338,7 @@ static inline int audit_rate_check(void)
+@@ -337,6 +343,7 @@ static inline int audit_rate_check(void)
  	unsigned long		elapsed;
  	int			retval	   = 0;
  
@@ -22,7 +22,7 @@ diff -Nupr src.orig/kernel/audit.c src/kernel/audit.c
  	if (!audit_rate_limit) return 1;
  
  	spin_lock_irqsave(&lock, flags);
-@@ -351,6 +358,11 @@ static inline int audit_rate_check(void)
+@@ -356,6 +363,11 @@ static inline int audit_rate_check(void)
  	return retval;
  }
  
@@ -34,7 +34,7 @@ diff -Nupr src.orig/kernel/audit.c src/kernel/audit.c
  /**
   * audit_log_lost - conditionally log lost audit message event
   * @message: the message stating reason for lost audit message
-@@ -397,6 +409,8 @@ static int audit_log_config_change(char
+@@ -402,6 +414,8 @@ static int audit_log_config_change(char
  	struct audit_buffer *ab;
  	int rc = 0;
  

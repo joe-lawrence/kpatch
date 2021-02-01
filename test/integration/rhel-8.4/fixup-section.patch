@@ -1,6 +1,6 @@
 diff -Nupr src.orig/fs/readdir.c src/fs/readdir.c
---- src.orig/fs/readdir.c	2020-10-21 11:10:09.326650567 -0400
-+++ src/fs/readdir.c	2020-10-21 11:10:24.675217646 -0400
+--- src.orig/fs/readdir.c	2021-02-09 11:18:01.956572087 -0500
++++ src/fs/readdir.c	2021-02-09 11:18:12.780644578 -0500
 @@ -189,6 +189,7 @@ static int filldir(struct dir_context *c
  			goto efault;
  	}
