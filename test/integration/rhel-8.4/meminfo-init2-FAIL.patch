@@ -1,6 +1,6 @@
 diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
---- src.orig/fs/proc/meminfo.c	2020-10-21 11:10:09.397653191 -0400
-+++ src/fs/proc/meminfo.c	2020-10-21 11:10:52.206234827 -0400
+--- src.orig/fs/proc/meminfo.c	2021-01-29 10:48:22.912567976 -0500
++++ src/fs/proc/meminfo.c	2021-01-29 10:48:54.767686676 -0500
 @@ -41,6 +41,7 @@ static int meminfo_proc_show(struct seq_
  	unsigned long sreclaimable, sunreclaim;
  	int lru;
@@ -9,7 +9,7 @@ diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
  	si_meminfo(&i);
  	si_swapinfo(&i);
  	committed = percpu_counter_read_positive(&vm_committed_as);
-@@ -153,6 +154,7 @@ static int meminfo_proc_show(struct seq_
+@@ -156,6 +157,7 @@ static int meminfo_proc_show(struct seq_
  
  static int __init proc_meminfo_init(void)
  {

@@ -22,9 +22,9 @@ Signed-off-by: Josh Poimboeuf <jpoimboe@redhat.com>
  2 files changed, 35 insertions(+)
 
 diff -Nupr src.orig/fs/nfsd/export.c src/fs/nfsd/export.c
---- src.orig/fs/nfsd/export.c	2020-10-21 11:10:09.384652710 -0400
-+++ src/fs/nfsd/export.c	2020-10-21 11:11:00.416538170 -0400
-@@ -1209,15 +1209,45 @@ static void exp_flags(struct seq_file *m
+--- src.orig/fs/nfsd/export.c	2021-01-29 10:48:22.894567909 -0500
++++ src/fs/nfsd/export.c	2021-01-29 10:49:01.380711318 -0500
+@@ -1221,15 +1221,45 @@ static void exp_flags(struct seq_file *m
  	}
  }
  
@@ -71,9 +71,9 @@ diff -Nupr src.orig/fs/nfsd/export.c src/fs/nfsd/export.c
  	}
  
 diff -Nupr src.orig/net/netlink/af_netlink.c src/net/netlink/af_netlink.c
---- src.orig/net/netlink/af_netlink.c	2020-10-21 11:10:12.221757532 -0400
-+++ src/net/netlink/af_netlink.c	2020-10-21 11:11:00.417538207 -0400
-@@ -2791,4 +2791,9 @@ panic:
+--- src.orig/net/netlink/af_netlink.c	2021-01-29 10:48:23.829571393 -0500
++++ src/net/netlink/af_netlink.c	2021-01-29 10:49:01.380711318 -0500
+@@ -2870,4 +2870,9 @@ panic:
  	panic("netlink_init: Cannot allocate nl_table\n");
  }
  
