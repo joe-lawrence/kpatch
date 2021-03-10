@@ -1,0 +1,19 @@
+diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
+--- src.orig/fs/proc/meminfo.c	2021-11-17 22:21:43.697307367 -0500
++++ src/fs/proc/meminfo.c	2021-11-17 22:22:23.299371447 -0500
+@@ -39,6 +39,7 @@ static int meminfo_proc_show(struct seq_
+ 	unsigned long sreclaimable, sunreclaim;
+ 	int lru;
+ 
++	printk("a\n");
+ 	si_meminfo(&i);
+ 	si_swapinfo(&i);
+ 	committed = vm_memory_committed();
+@@ -155,6 +156,7 @@ static int meminfo_proc_show(struct seq_
+ 
+ static int __init proc_meminfo_init(void)
+ {
++	printk("a\n");
+ 	proc_create_single("meminfo", 0, NULL, meminfo_proc_show);
+ 	return 0;
+ }

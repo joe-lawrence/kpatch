@@ -1,0 +1,13 @@
+diff -Nupr src.orig/mm/mmap.c src/mm/mmap.c
+--- src.orig/mm/mmap.c	2021-11-17 22:21:43.991307843 -0500
++++ src/mm/mmap.c	2021-11-17 22:22:03.855339985 -0500
+@@ -1728,6 +1728,9 @@ unsigned long mmap_region(struct file *f
+ 	struct rb_node **rb_link, *rb_parent;
+ 	unsigned long charged = 0;
+ 
++	if (!jiffies)
++		printk("kpatch mmap foo\n");
++
+ 	/* Check against address space limit. */
+ 	if (!may_expand_vm(mm, vm_flags, len >> PAGE_SHIFT)) {
+ 		unsigned long nr_pages;
