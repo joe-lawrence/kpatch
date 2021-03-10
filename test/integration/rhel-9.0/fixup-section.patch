@@ -1,0 +1,11 @@
+diff -Nupr src.old/fs/readdir.c src/fs/readdir.c
+--- src.old/fs/readdir.c	2021-03-10 14:22:31.049091912 -0500
++++ src/fs/readdir.c	2021-03-10 14:32:19.619254662 -0500
+@@ -242,6 +242,7 @@ static int filldir(struct dir_context *c
+ 	if (prev_reclen && signal_pending(current))
+ 		return -EINTR;
+ 	dirent = buf->current_dir;
++	asm("nop");
+ 	prev = (void __user *) dirent - prev_reclen;
+ 	if (!user_write_access_begin(prev, reclen + prev_reclen))
+ 		goto efault;
