@@ -1,0 +1,82 @@
+kpatch module integration test
+
+This tests several things related to the patching of modules:
+
+- 'kpatch_string' tests the referencing of a symbol which is outside the
+  .o, but inside the patch module.
+
+- alternatives patching (.altinstructions)
+
+- paravirt patching (.parainstructions)
+
+- jump labels (5.8+ kernels only) -- including dynamic printk
+
+Signed-off-by: Josh Poimboeuf <jpoimboe@redhat.com>
+
+diff -Nupr src.old/fs/nfsd/export.c src/fs/nfsd/export.c
+--- src.old/fs/nfsd/export.c	2021-03-10 14:22:31.078091673 -0500
++++ src/fs/nfsd/export.c	2021-03-10 15:38:37.835912543 -0500
+@@ -1294,6 +1294,9 @@ static void exp_flags(struct seq_file *m
+ 	}
+ }
+ 
++#include <linux/version.h>
++extern char *kpatch_string(void);
++
+ static int e_show(struct seq_file *m, void *p)
+ {
+ 	struct cache_head *cp = p;
+@@ -1301,12 +1304,40 @@ static int e_show(struct seq_file *m, vo
+ 	struct cache_detail *cd = m->private;
+ 	bool export_stats = is_export_stats_file(m);
+ 
++#ifdef CONFIG_X86_64
++	unsigned long long sched_clock;
++
++	alternative("ud2", "call yield", X86_FEATURE_ALWAYS);
++	alternative("call yield", "ud2", X86_FEATURE_IA64);
++
++	sched_clock = paravirt_sched_clock();
++	if (!jiffies)
++		printk("kpatch: sched_clock: %llu\n", sched_clock);
++#endif
++
++	pr_debug("kpatch: pr_debug() test\n");
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
++{
++	static DEFINE_STATIC_KEY_TRUE(kpatch_key);
++
++	if (static_branch_unlikely(&mcsafe_key))
++		printk("kpatch: mcsafe_key\n");
++
++	BUG_ON(!static_branch_likely(&kpatch_key));
++	static_branch_disable(&kpatch_key);
++	BUG_ON(static_branch_likely(&kpatch_key));
++	static_branch_enable(&kpatch_key);
++}
++#endif
++
+ 	if (p == SEQ_START_TOKEN) {
+ 		seq_puts(m, "# Version 1.1\n");
+ 		if (export_stats)
+ 			seq_puts(m, "# Path Client Start-time\n#\tStats\n");
+ 		else
+ 			seq_puts(m, "# Path Client(Flags) # IPs\n");
++		seq_puts(m, kpatch_string());
+ 		return 0;
+ 	}
+ 
+diff -Nupr src.old/net/netlink/af_netlink.c src/net/netlink/af_netlink.c
+--- src.old/net/netlink/af_netlink.c	2021-03-10 14:22:29.709102925 -0500
++++ src/net/netlink/af_netlink.c	2021-03-10 15:38:54.433919831 -0500
+@@ -2906,4 +2906,9 @@ panic:
+ 	panic("netlink_init: Cannot allocate nl_table\n");
+ }
+ 
++char *kpatch_string(void)
++{
++	return "# kpatch\n";
++}
++
+ core_initcall(netlink_proto_init);
