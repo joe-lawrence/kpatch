@@ -27,7 +27,7 @@ $(error Unsupported architecture ${ARCH}, check https://github.com/dynup/kpatch/
 endif
 
 
-all: $(TARGETS)
+all: $(TARGETS) klp-convert
 
 -include $(SOURCES:.c=.d)
 
@@ -35,18 +35,28 @@ create-diff-object: create-diff-object.o kpatch-elf.o lookup.o $(INSN)
 create-klp-module: create-klp-module.o kpatch-elf.o
 create-kpatch-module: create-kpatch-module.o kpatch-elf.o
 
+.PHONY: klp-convert
+klp-convert:
+	$(MAKE) -C klp-convert
+klp-convert-clean:
+	$(MAKE) -C klp-convert clean
+klp-convert-install:
+	$(MAKE) -C klp-convert install
+klp-convert-uninstall:
+	$(MAKE) -C klp-convert uninstall
+
 $(PLUGIN): gcc-plugins/ppc64le-plugin.c
 	g++ $(PLUGIN_CFLAGS) $< -o $@
 
-install: all
+install: all klp-convert-install
 	$(INSTALL) -d $(LIBEXECDIR)
 	$(INSTALL) $(TARGETS) kpatch-cc $(LIBEXECDIR)
 	$(INSTALL) -d $(BINDIR)
 	$(INSTALL) kpatch-build $(BINDIR)
 
-uninstall:
+uninstall: klp-convert-uninstall
 	$(RM) -R $(LIBEXECDIR)
 	$(RM) $(BINDIR)/kpatch-build
 
-clean:
+clean: klp-convert-clean
 	$(RM) $(TARGETS) *.{o,d} insn/*.{o,d} gcc-plugins/*.{so,d}
