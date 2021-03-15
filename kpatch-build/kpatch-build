@@ -891,6 +891,8 @@ make "${MAKEVARS[@]}" "-j$CPUS" $TARGETS 2>&1 | logger || die
 # Save original module symvers
 cp -f "$SRCDIR/Module.symvers" "$TEMPDIR/Module.symvers" || die
 
+"$TOOLSDIR/klp-convert/print-symbols-klp" "$SRCDIR" > "$SRCDIR"/symbols.klp || die
+
 echo "Building patched source"
 apply_patches
 mkdir -p "$TEMPDIR/orig" "$TEMPDIR/patched"
