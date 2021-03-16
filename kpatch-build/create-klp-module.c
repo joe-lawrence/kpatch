@@ -381,6 +381,7 @@ struct arguments {
 	char *args[2];
 	int debug;
 	int no_klp_arch;
+	int no_krelasec;
 };
 
 static char args_doc[] = "input.ko output.ko";
@@ -388,6 +389,7 @@ static char args_doc[] = "input.ko output.ko";
 static struct argp_option options[] = {
 	{"debug", 'd', 0, 0, "Show debug output" },
 	{"no-klp-arch-sections", 'n', 0, 0, "Do not output .klp.arch.* sections" },
+	{"no-klp-relocations", 'r', 0, 0, "Do not output .klp.rela.* sections" },
 	{ 0 }
 };
 
@@ -404,6 +406,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 			break;
 		case 'n':
 			arguments->no_klp_arch = 1;
+			break;
+		case 'r':
+			arguments->no_krelasec = 1;
 			break;
 		case ARGP_KEY_ARG:
 			if (state->arg_num >= 2)
@@ -472,7 +477,9 @@ int main(int argc, char *argv[])
 	 * Create klp rela sections and klp symbols from
 	 * .kpatch.{relocations,symbols} sections
 	 */
-	create_klp_relasecs_and_syms(kelf, krelasec, ksymsec, strings);
+	if (!arguments.no_krelasec) {
+		create_klp_relasecs_and_syms(kelf, krelasec, ksymsec, strings);
+	}
 
 	/*
 	 * If --no-klp-arch-sections wasn't set, additionally

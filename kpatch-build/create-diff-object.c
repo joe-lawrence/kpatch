@@ -77,6 +77,7 @@ enum subsection {
 enum loglevel loglevel = NORMAL;
 
 bool KLP_ARCH;
+bool NO_KRELASEC;
 
 /*******************
  * Data structures
@@ -2981,6 +2982,9 @@ static bool need_dynrela(struct lookup_table *table, const struct rela *rela)
 {
 	struct lookup_result symbol;
 
+	if (NO_KRELASEC)
+		return false;
+
 	/*
 	 * These references are treated specially by the module loader and
 	 * should never be converted to dynrelas.
@@ -3630,6 +3634,7 @@ static void kpatch_no_sibling_calls_ppc64le(struct kpatch_elf *kelf)
 struct arguments {
 	char *args[7];
 	bool debug, klp_arch;
+	int no_krelasec;
 };
 
 static char args_doc[] = "original.o patched.o parent-name parent-symtab Module.symvers patch-module-name output.o";
@@ -3637,6 +3642,7 @@ static char args_doc[] = "original.o patched.o parent-name parent-symtab Module.
 static struct argp_option options[] = {
 	{"debug",	'd', NULL, 0, "Show debug output" },
 	{"klp-arch",	'a', NULL, 0, "Kernel supports .klp.arch section" },
+	{"no-klp-relocations", 'r', 0, 0, "Do not output .klp.rela.* sections" },
 	{ NULL }
 };
 
@@ -3653,6 +3659,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 			break;
 		case 'a':
 			arguments->klp_arch = 1;
+			break;
+		case 'r':
+			arguments->no_krelasec = 1;
 			break;
 		case ARGP_KEY_ARG:
 			if (state->arg_num >= 7)
@@ -3691,6 +3700,8 @@ int main(int argc, char *argv[])
 		loglevel = DEBUG;
 	if (arguments.klp_arch)
 		KLP_ARCH = true;
+	if (arguments.no_krelasec)
+		NO_KRELASEC = true;
 
 	elf_version(EV_CURRENT);
 
