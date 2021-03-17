@@ -713,6 +713,22 @@ static bool skip_section(struct section *sec)
  */
 static bool supported_section(struct section *sec, char *object_name)
 {
+	/*
+	 * Special section relocations supported only for vmlinux, as
+	 * the kernel can't ensure other target objects will be present
+	 * to fully initialize the associated data structures.
+	 */
+	const char *vmlinux_only_list[] = {
+		".rela.altinstr_aux",
+		".rela.altinstr_replacement",
+		".rela__jump_table",
+		NULL
+	};
+
+	/*
+	 * Relocation section prefixes supported for all target objects,
+	 * including vmlinux.
+	 */
 	const char *prefix_list[] = {
 		".rela.data",
 		".rela.exit.text",
@@ -723,19 +739,15 @@ static bool supported_section(struct section *sec, char *object_name)
 		".rela.toc",		/* powerpc */
 		NULL
 	};
-	const char **prefix;
 
-	/*
-	 * Only allow jump_table relocations to vmlinux as the
-	 * kernel can't ensure other target objects will be
-	 * present to fully initialize the static keys.
-	 */
-	if (strcmp(sec->name, ".rela__jump_table") == 0 &&
-	    strcmp(object_name, "vmlinux") == 0)
-		return true;
+	const char **entry;
 
-	for (prefix = prefix_list; *prefix; prefix++)
-		if (strncmp(sec->name, *prefix, strlen(*prefix)) == 0)
+	for (entry = vmlinux_only_list; *entry; entry++)
+		if (strcmp(sec->name, *entry) == 0)
+			return true;
+
+	for (entry = prefix_list; *entry; entry++)
+		if (strncmp(sec->name, *entry, strlen(*entry)) == 0)
 			return true;
 
 	return false;
