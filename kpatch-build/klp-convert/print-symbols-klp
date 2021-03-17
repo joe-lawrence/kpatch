@@ -15,7 +15,7 @@ while IFS= read -r o; do
     modinfo --field livepatch "$BUILD_DIR/${o}.ko" | grep -q '^Y$' && continue
 
     echo "*$(basename -s .ko "$o")"
-    nm -f posix "$BUILD_DIR/${o}.o" | cut -d\  -f1
+    nm -f posix "$BUILD_DIR/${o}.o" | awk '$2 != "U"' | cut -d\  -f1
 
 done < <(sort -u $BUILD_DIR/modules.order | sed -e 's/^kernel\///' -e 's/\.ko$//')
 # TODO: why do older kernels prefix "kernel/" to modules.order entries?
