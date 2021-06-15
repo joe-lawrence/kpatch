@@ -1,7 +1,7 @@
 diff -Nupr src.orig/fs/proc/proc_sysctl.c src/fs/proc/proc_sysctl.c
---- src.orig/fs/proc/proc_sysctl.c	2021-03-10 14:11:26.601110422 -0500
-+++ src/fs/proc/proc_sysctl.c	2021-03-10 14:11:27.619111574 -0500
-@@ -307,6 +307,8 @@ static void start_unregistering(struct c
+--- src.orig/fs/proc/proc_sysctl.c	2021-06-15 11:26:57.224132981 -0400
++++ src/fs/proc/proc_sysctl.c	2021-06-15 11:26:58.230135825 -0400
+@@ -302,6 +302,8 @@ static void start_unregistering(struct c
  
  static struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *head)
  {

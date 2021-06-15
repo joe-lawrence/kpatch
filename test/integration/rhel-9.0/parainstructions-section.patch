@@ -1,7 +1,7 @@
 diff -Nupr src.orig/fs/proc/generic.c src/fs/proc/generic.c
---- src.orig/fs/proc/generic.c	2021-03-10 14:11:26.600110421 -0500
-+++ src/fs/proc/generic.c	2021-03-10 14:12:12.148161952 -0500
-@@ -210,6 +210,7 @@ int proc_alloc_inum(unsigned int *inum)
+--- src.orig/fs/proc/generic.c	2021-06-15 11:26:57.224132981 -0400
++++ src/fs/proc/generic.c	2021-06-15 11:27:58.401305912 -0400
+@@ -203,6 +203,7 @@ int proc_alloc_inum(unsigned int *inum)
  {
  	int i;
  
