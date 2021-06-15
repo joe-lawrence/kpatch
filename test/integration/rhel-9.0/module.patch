@@ -13,9 +13,9 @@ This tests several things related to the patching of modules:
 
 Signed-off-by: Josh Poimboeuf <jpoimboe@redhat.com>
 
-diff -Nupr src.old/fs/nfsd/export.c src/fs/nfsd/export.c
---- src.old/fs/nfsd/export.c	2021-03-10 14:22:31.078091673 -0500
-+++ src/fs/nfsd/export.c	2021-03-10 15:38:37.835912543 -0500
+diff -Nupr src.orig/fs/nfsd/export.c src/fs/nfsd/export.c
+--- src.orig/fs/nfsd/export.c	2021-06-15 11:26:57.216132959 -0400
++++ src/fs/nfsd/export.c	2021-06-15 11:27:49.310280212 -0400
 @@ -1294,6 +1294,9 @@ static void exp_flags(struct seq_file *m
  	}
  }
@@ -67,10 +67,10 @@ diff -Nupr src.old/fs/nfsd/export.c src/fs/nfsd/export.c
  		return 0;
  	}
  
-diff -Nupr src.old/net/netlink/af_netlink.c src/net/netlink/af_netlink.c
---- src.old/net/netlink/af_netlink.c	2021-03-10 14:22:29.709102925 -0500
-+++ src/net/netlink/af_netlink.c	2021-03-10 15:38:54.433919831 -0500
-@@ -2906,4 +2906,9 @@ panic:
+diff -Nupr src.orig/net/netlink/af_netlink.c src/net/netlink/af_netlink.c
+--- src.orig/net/netlink/af_netlink.c	2021-06-15 11:26:55.388127791 -0400
++++ src/net/netlink/af_netlink.c	2021-06-15 11:27:49.311280215 -0400
+@@ -2908,4 +2908,9 @@ panic:
  	panic("netlink_init: Cannot allocate nl_table\n");
  }
  

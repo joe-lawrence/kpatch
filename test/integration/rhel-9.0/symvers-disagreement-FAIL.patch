@@ -21,8 +21,8 @@ detail.
  2 files changed, 4 insertions(+)
 
 diff -Nupr src.orig/drivers/base/core.c src/drivers/base/core.c
---- src.orig/drivers/base/core.c	2021-03-10 14:11:25.504109181 -0500
-+++ src/drivers/base/core.c	2021-03-10 14:12:20.252171120 -0500
+--- src.orig/drivers/base/core.c	2021-06-15 11:26:55.959129406 -0400
++++ src/drivers/base/core.c	2021-06-15 11:28:10.576340329 -0400
 @@ -33,6 +33,8 @@
  #include "base.h"
  #include "power/power.h"
@@ -33,9 +33,9 @@ diff -Nupr src.orig/drivers/base/core.c src/drivers/base/core.c
  #ifdef CONFIG_SYSFS_DEPRECATED_V2
  long sysfs_deprecated = 1;
 diff -Nupr src.orig/drivers/usb/core/usb.c src/drivers/usb/core/usb.c
---- src.orig/drivers/usb/core/usb.c	2021-03-10 14:11:26.501110309 -0500
-+++ src/drivers/usb/core/usb.c	2021-03-10 14:12:20.253171121 -0500
-@@ -693,6 +693,8 @@ EXPORT_SYMBOL_GPL(usb_alloc_dev);
+--- src.orig/drivers/usb/core/usb.c	2021-06-15 11:26:57.113132667 -0400
++++ src/drivers/usb/core/usb.c	2021-06-15 11:28:10.576340329 -0400
+@@ -739,6 +739,8 @@ EXPORT_SYMBOL_GPL(usb_alloc_dev);
   */
  struct usb_device *usb_get_dev(struct usb_device *dev)
  {
