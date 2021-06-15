@@ -1,7 +1,7 @@
 diff -Nupr src.orig/mm/slub.c src/mm/slub.c
---- src.orig/mm/slub.c	2021-03-10 14:11:25.003108614 -0500
-+++ src/mm/slub.c	2021-03-10 14:11:42.059127910 -0500
-@@ -5826,6 +5826,9 @@ void get_slabinfo(struct kmem_cache *s,
+--- src.orig/mm/slub.c	2021-06-15 11:26:55.337127647 -0400
++++ src/mm/slub.c	2021-06-15 11:27:16.516187514 -0400
+@@ -5830,6 +5830,9 @@ void get_slabinfo(struct kmem_cache *s,
  	int node;
  	struct kmem_cache_node *n;
  

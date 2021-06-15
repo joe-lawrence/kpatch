@@ -1,7 +1,7 @@
-diff -Nupr src.old/fs/readdir.c src/fs/readdir.c
---- src.old/fs/readdir.c	2021-03-10 14:22:31.049091912 -0500
-+++ src/fs/readdir.c	2021-03-10 14:32:19.619254662 -0500
-@@ -242,6 +242,7 @@ static int filldir(struct dir_context *c
+diff -Nupr src.orig/fs/readdir.c src/fs/readdir.c
+--- src.orig/fs/readdir.c	2021-06-15 11:26:57.182132863 -0400
++++ src/fs/readdir.c	2021-06-15 11:27:10.618170842 -0400
+@@ -245,6 +245,7 @@ static int filldir(struct dir_context *c
  	if (prev_reclen && signal_pending(current))
  		return -EINTR;
  	dirent = buf->current_dir;
