@@ -1,6 +1,6 @@
 diff -Nupr src.orig/kernel/audit.c src/kernel/audit.c
---- src.orig/kernel/audit.c	2021-06-15 11:26:57.940135005 -0400
-+++ src/kernel/audit.c	2021-06-15 11:27:28.306220840 -0400
+--- src.orig/kernel/audit.c	2021-08-02 14:27:22.121018156 -0400
++++ src/kernel/audit.c	2021-08-02 14:27:51.981890719 -0400
 @@ -314,6 +314,12 @@ void audit_panic(const char *message)
  	}
  }

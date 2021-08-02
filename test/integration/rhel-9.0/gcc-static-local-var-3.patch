@@ -1,7 +1,7 @@
 diff -Nupr src.orig/kernel/reboot.c src/kernel/reboot.c
---- src.orig/kernel/reboot.c	2021-06-15 11:26:57.942135011 -0400
-+++ src/kernel/reboot.c	2021-06-15 11:27:22.609204737 -0400
-@@ -396,8 +396,15 @@ SYSCALL_DEFINE4(reboot, int, magic1, int
+--- src.orig/kernel/reboot.c	2021-08-02 14:27:22.126018134 -0400
++++ src/kernel/reboot.c	2021-08-02 14:27:46.257915147 -0400
+@@ -397,8 +397,15 @@ SYSCALL_DEFINE4(reboot, int, magic1, int
  	return ret;
  }
  

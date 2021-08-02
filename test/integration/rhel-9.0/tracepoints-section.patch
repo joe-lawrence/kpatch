@@ -1,7 +1,7 @@
 diff -Nupr src.orig/kernel/time/timer.c src/kernel/time/timer.c
---- src.orig/kernel/time/timer.c	2021-06-15 11:26:57.956135050 -0400
-+++ src/kernel/time/timer.c	2021-06-15 11:28:13.648349015 -0400
-@@ -1755,6 +1755,9 @@ static __latent_entropy void run_timer_s
+--- src.orig/kernel/time/timer.c	2021-08-02 14:27:22.135018096 -0400
++++ src/kernel/time/timer.c	2021-08-02 14:28:35.095706724 -0400
+@@ -1742,6 +1742,9 @@ static __latent_entropy void run_timer_s
  {
  	struct timer_base *base = this_cpu_ptr(&timer_bases[BASE_STD]);
  

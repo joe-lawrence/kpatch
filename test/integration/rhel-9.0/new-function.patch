@@ -1,7 +1,7 @@
 diff -Nupr src.orig/drivers/tty/n_tty.c src/drivers/tty/n_tty.c
---- src.orig/drivers/tty/n_tty.c	2021-06-15 11:26:57.102132636 -0400
-+++ src/drivers/tty/n_tty.c	2021-06-15 11:27:52.537289333 -0400
-@@ -2319,7 +2319,7 @@ more_to_be_read:
+--- src.orig/drivers/tty/n_tty.c	2021-08-02 14:27:21.687020008 -0400
++++ src/drivers/tty/n_tty.c	2021-08-02 14:28:14.981792564 -0400
+@@ -2253,7 +2253,7 @@ more_to_be_read:
   *		  lock themselves)
   */
  
@@ -10,7 +10,7 @@ diff -Nupr src.orig/drivers/tty/n_tty.c src/drivers/tty/n_tty.c
  			   const unsigned char *buf, size_t nr)
  {
  	const unsigned char *b = buf;
-@@ -2406,6 +2406,12 @@ break_out:
+@@ -2340,6 +2340,12 @@ break_out:
  	return (b - buf) ? b - buf : retval;
  }
  
