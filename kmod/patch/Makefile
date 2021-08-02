@@ -1,5 +1,5 @@
 KPATCH_BUILD ?= /lib/modules/$(shell uname -r)/build
-KPATCH_MAKE = $(MAKE) -C $(KPATCH_BUILD) M=$(PWD)
+KPATCH_MAKE = $(MAKE) -C $(KPATCH_BUILD) M=$(PWD) CFLAGS_MODULE='$(KBUILD_CFLAGS_MODULE)'
 LDFLAGS += $(KPATCH_LDFLAGS)
 
 # ppc64le kernel modules are expected to compile with the
