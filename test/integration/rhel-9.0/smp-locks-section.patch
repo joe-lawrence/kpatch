@@ -1,7 +1,7 @@
 diff -Nupr src.orig/drivers/tty/tty_buffer.c src/drivers/tty/tty_buffer.c
---- src.orig/drivers/tty/tty_buffer.c	2021-06-15 11:26:57.108132653 -0400
-+++ src/drivers/tty/tty_buffer.c	2021-06-15 11:28:04.551323297 -0400
-@@ -261,6 +261,9 @@ static int __tty_buffer_request_room(str
+--- src.orig/drivers/tty/tty_buffer.c	2021-08-02 14:27:21.693019982 -0400
++++ src/drivers/tty/tty_buffer.c	2021-08-02 14:28:26.432743695 -0400
+@@ -263,6 +263,9 @@ static int __tty_buffer_request_room(str
  	struct tty_buffer *b, *n;
  	int left, change;
  

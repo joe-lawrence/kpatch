@@ -1,9 +1,9 @@
 Disabled due to https:/github.com/dynup/kpatch/issues/940
 ---
 diff -Nupr src.orig/net/core/dev.c src/net/core/dev.c
---- src.orig/net/core/dev.c	2021-06-15 11:26:55.353127693 -0400
-+++ src/net/core/dev.c	2021-06-15 11:27:07.663162489 -0400
-@@ -5362,6 +5362,7 @@ skip_classify:
+--- src.orig/net/core/dev.c	2021-08-02 14:27:20.081026862 -0400
++++ src/net/core/dev.c	2021-08-02 14:27:31.663977430 -0400
+@@ -5401,6 +5401,7 @@ skip_classify:
  		case RX_HANDLER_PASS:
  			break;
  		default:
