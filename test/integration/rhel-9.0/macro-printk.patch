@@ -1,6 +1,6 @@
-diff -Nupr src.orig/net/ipv4/fib_frontend.c src/net/ipv4/fib_frontend.c
---- src.orig/net/ipv4/fib_frontend.c	2021-08-02 14:27:20.088026832 -0400
-+++ src/net/ipv4/fib_frontend.c	2021-08-02 14:28:00.560854107 -0400
+diff -Nupr src.old/net/ipv4/fib_frontend.c src/net/ipv4/fib_frontend.c
+--- src.old/net/ipv4/fib_frontend.c	2021-08-20 09:23:47.250089164 -0400
++++ src/net/ipv4/fib_frontend.c	2021-08-20 12:15:07.241244802 -0400
 @@ -865,6 +865,7 @@ errout:
  	return err;
  }
@@ -17,9 +17,9 @@ diff -Nupr src.orig/net/ipv4/fib_frontend.c src/net/ipv4/fib_frontend.c
  errout:
  	return err;
  }
-diff -Nupr src.orig/net/ipv4/fib_semantics.c src/net/ipv4/fib_semantics.c
---- src.orig/net/ipv4/fib_semantics.c	2021-08-02 14:27:20.088026832 -0400
-+++ src/net/ipv4/fib_semantics.c	2021-08-02 14:28:00.560854107 -0400
+diff -Nupr src.old/net/ipv4/fib_semantics.c src/net/ipv4/fib_semantics.c
+--- src.old/net/ipv4/fib_semantics.c	2021-08-20 09:23:47.250089164 -0400
++++ src/net/ipv4/fib_semantics.c	2021-08-20 12:15:07.241244802 -0400
 @@ -1344,6 +1344,7 @@ static bool fib_valid_prefsrc(struct fib
  	return true;
  }
@@ -121,10 +121,26 @@ diff -Nupr src.orig/net/ipv4/fib_semantics.c src/net/ipv4/fib_semantics.c
  
  	return ERR_PTR(err);
  }
-diff -Nupr src.orig/net/ipv4/fib_trie.c src/net/ipv4/fib_trie.c
---- src.orig/net/ipv4/fib_trie.c	2021-08-02 14:27:20.089026828 -0400
-+++ src/net/ipv4/fib_trie.c	2021-08-02 14:28:00.561854103 -0400
-@@ -1200,6 +1200,7 @@ static void fib_remove_alias(struct trie
+diff -Nupr src.old/net/ipv4/fib_trie.c src/net/ipv4/fib_trie.c
+--- src.old/net/ipv4/fib_trie.c	2021-08-20 09:23:47.250089164 -0400
++++ src/net/ipv4/fib_trie.c	2021-08-20 12:15:35.140188221 -0400
+@@ -532,6 +532,7 @@ static struct key_vector *replace(struct
+ 	return tp;
+ }
+ 
++__attribute__((optimize("-fno-optimize-sibling-calls")))
+ static struct key_vector *inflate(struct trie *t,
+ 				  struct key_vector *oldtnode)
+ {
+@@ -628,6 +629,7 @@ notnode:
+ 	return NULL;
+ }
+ 
++__attribute__((optimize("-fno-optimize-sibling-calls")))
+ static struct key_vector *halve(struct trie *t,
+ 				struct key_vector *oldtnode)
+ {
+@@ -1200,6 +1202,7 @@ static void fib_remove_alias(struct trie
  			     struct key_vector *l, struct fib_alias *old);
  
  /* Caller must hold RTNL. */
@@ -132,7 +148,7 @@ diff -Nupr src.orig/net/ipv4/fib_trie.c src/net/ipv4/fib_trie.c
  int fib_table_insert(struct net *net, struct fib_table *tb,
  		     struct fib_config *cfg, struct netlink_ext_ack *extack)
  {
-@@ -1221,11 +1222,14 @@ int fib_table_insert(struct net *net, st
+@@ -1221,11 +1224,14 @@ int fib_table_insert(struct net *net, st
  
  	pr_debug("Insert table=%u %08x/%d\n", tb->tb_id, key, plen);
  

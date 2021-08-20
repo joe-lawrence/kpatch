@@ -1,6 +1,6 @@
-diff -Nupr src.orig/kernel/audit.c src/kernel/audit.c
---- src.orig/kernel/audit.c	2021-08-02 14:27:22.121018156 -0400
-+++ src/kernel/audit.c	2021-08-02 14:27:51.981890719 -0400
+diff -Nupr src.old/kernel/audit.c src/kernel/audit.c
+--- src.old/kernel/audit.c	2021-08-20 09:23:48.600038166 -0400
++++ src/kernel/audit.c	2021-08-20 12:00:13.925060016 -0400
 @@ -314,6 +314,12 @@ void audit_panic(const char *message)
  	}
  }
@@ -43,3 +43,27 @@ diff -Nupr src.orig/kernel/audit.c src/kernel/audit.c
  	ab = audit_log_start(audit_context(), GFP_KERNEL, AUDIT_CONFIG_CHANGE);
  	if (unlikely(!ab))
  		return rc;
+@@ -1095,6 +1109,7 @@ static int audit_get_feature(struct sk_b
+ 	return 0;
+ }
+ 
++__attribute__((optimize("-fno-optimize-sibling-calls")))
+ static void audit_log_feature_change(int which, u32 old_feature, u32 new_feature,
+ 				     u32 old_lock, u32 new_lock, int res)
+ {
+@@ -2230,6 +2245,7 @@ EXPORT_SYMBOL(audit_log_task_info);
+  * @type: audit message type (AUDIT_ANOM_LINK, AUDIT_ANOM_CREAT, etc)
+  * @operation: specific operation name
+  */
++__attribute__((optimize("-fno-optimize-sibling-calls")))
+ void audit_log_path_denied(int type, const char *operation)
+ {
+ 	struct audit_buffer *ab;
+@@ -2368,6 +2384,7 @@ int audit_signal_info(int sig, struct ta
+  * queue and a kthread is scheduled to remove them from the queue outside the
+  * irq context.  May be called in any context.
+  */
++__attribute__((optimize("-fno-optimize-sibling-calls")))
+ void audit_log_end(struct audit_buffer *ab)
+ {
+ 	struct sk_buff *skb;

@@ -1,7 +1,12 @@
-diff -Nupr src.orig/kernel/time/timer.c src/kernel/time/timer.c
---- src.orig/kernel/time/timer.c	2021-08-02 14:27:22.135018096 -0400
-+++ src/kernel/time/timer.c	2021-08-02 14:28:35.095706724 -0400
-@@ -1742,6 +1742,9 @@ static __latent_entropy void run_timer_s
+diff -Nupr src.old/kernel/time/timer.c src/kernel/time/timer.c
+--- src.old/kernel/time/timer.c	2021-08-20 09:23:48.610037789 -0400
++++ src/kernel/time/timer.c	2021-08-20 09:51:30.767258690 -0400
+@@ -1738,10 +1738,14 @@ static inline void __run_timers(struct t
+ /*
+  * This function runs timers and the timer-tq in bottom half context.
+  */
++__attribute__((optimize("-fno-optimize-sibling-calls")))
+ static __latent_entropy void run_timer_softirq(struct softirq_action *h)
  {
  	struct timer_base *base = this_cpu_ptr(&timer_bases[BASE_STD]);
  
