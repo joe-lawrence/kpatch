@@ -3635,6 +3635,7 @@ static void kpatch_no_sibling_calls_ppc64le(struct kpatch_elf *kelf)
 	struct symbol *sym;
 	unsigned int insn;
 	unsigned int offset;
+	int siblings_found = 0;
 
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		if (sym->type != STT_FUNC || sym->status != CHANGED)
@@ -3664,10 +3665,14 @@ static void kpatch_no_sibling_calls_ppc64le(struct kpatch_elf *kelf)
 			if (!find_rela_by_offset(sym->sec->rela, offset))
 				continue;
 
-			ERROR("Found an unsupported sibling call at %s()+0x%lx.  Add __attribute__((optimize(\"-fno-optimize-sibling-calls\"))) to %s() definition.",
+			log_normal("Found an unsupported sibling call at %s()+0x%lx.  Add __attribute__((optimize(\"-fno-optimize-sibling-calls\"))) to %s() definition.\n",
 			      sym->name, sym->sym.st_value + offset, sym->name);
+			siblings_found++;
 		}
 	}
+
+	if (siblings_found)
+		ERROR("Found %d unsupported sibling call(s).", siblings_found);
 #endif
 }
 
