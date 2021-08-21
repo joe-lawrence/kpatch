@@ -13,6 +13,6 @@ jobs:
 
 script:
   - make
-  - make unit
-  - make check
+  - make --keep-going unit
+  - make --keep-going check
   - sudo make install
