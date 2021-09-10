@@ -758,6 +758,9 @@ else
 		rpmbuild -D "_topdir $RPMTOPDIR" -bp --nodeps "--target=$(uname -m)" "$RPMTOPDIR"/SPECS/kernel$ALT.spec 2>&1 | logger ||
 			die "rpmbuild -bp failed.  you may need to run 'yum-builddep kernel' first."
 
+		patch -d "$RPMTOPDIR"/BUILD/kernel-*/linux-* -p1 < 0001-objtool-Make-.altinstructions-section-entry-size-con.patch
+		patch -d "$RPMTOPDIR"/BUILD/kernel-*/linux-* -p1 < 0001-objtool-Remove-redundant-len-field-from-struct-secti.patch
+
 		mv "$RPMTOPDIR"/BUILD/kernel-*/linux-* "$SRCDIR" 2>&1 | logger || die
 		rm -rf "$RPMTOPDIR"
 		rm -rf "$SRCDIR/.git"
