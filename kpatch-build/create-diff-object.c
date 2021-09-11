@@ -3002,7 +3002,12 @@ static bool need_dynrela(struct lookup_table *table, const struct rela *rela)
 	 * should never be converted to dynrelas.
 	 */
 	if (rela->type == R_PPC64_REL16_HA || rela->type == R_PPC64_REL16_LO ||
-	    rela->type == R_PPC64_REL64 || rela->type == R_PPC64_ENTRY)
+	    rela->type == R_PPC64_ENTRY)
+		return false;
+
+	/* v5.13+ kernels use relative jump labels */
+	if (rela->type == R_PPC64_REL64 &&
+	    rela->sym->sec && strcmp(rela->sym->sec->name, ".rela__jump_table"))
 		return false;
 
 	/*
