@@ -62,6 +62,8 @@
 
 #ifdef __powerpc64__
 #define ABSOLUTE_RELA_TYPE R_PPC64_ADDR64
+#elif __s390x__
+#define ABSOLUTE_RELA_TYPE R_390_64
 #else
 #define ABSOLUTE_RELA_TYPE R_X86_64_64
 #endif
@@ -122,6 +124,16 @@ static int is_bundleable(struct symbol *sym)
 	if (sym->type == STT_OBJECT &&
 	    !strncmp(sym->sec->name, ".data.rel.ro.", 13) &&
 	    !strcmp(sym->sec->name + 13, sym->name))
+		return 1;
+
+	if (sym->type == STT_OBJECT &&
+	    strstr(sym->sec->name, ".data.rel.ro.local.") &&
+	    strstr(sym->name, sym->sec->name))
+		return 1;
+
+	if (sym->type == STT_OBJECT &&
+	    strstr(sym->sec->name, ".data.rel.local.") &&
+	    strstr(sym->name, sym->sec->name))
 		return 1;
 
 	if (sym->type == STT_OBJECT &&
@@ -498,6 +510,10 @@ static bool rela_equal(struct rela *rela1, struct rela *rela2)
 	if (!rela_toc1 || !rela_toc2)
 		return false;
 
+	/*
+	 * For LC symbol, comparision is performed using rela->string.
+	 * rela->string is initialized appropriately based on LC symbol or not.
+	 */
 	if (rela_toc1->string)
 		return rela_toc2->string && !strcmp(rela_toc1->string, rela_toc2->string);
 
@@ -1073,29 +1089,6 @@ static void kpatch_check_program_headers(Elf *elf)
 		DIFF_FATAL("ELF contains program header");
 }
 
-static void kpatch_mark_grouped_sections(struct kpatch_elf *kelf)
-{
-	struct section *groupsec, *sec;
-	unsigned int *data, *end;
-
-	list_for_each_entry(groupsec, &kelf->sections, list) {
-		if (groupsec->sh.sh_type != SHT_GROUP)
-			continue;
-		data = groupsec->data->d_buf;
-		end = groupsec->data->d_buf + groupsec->data->d_size;
-		data++; /* skip first flag word (e.g. GRP_COMDAT) */
-		while (data < end) {
-			sec = find_section_by_index(&kelf->sections, *data);
-			if (!sec)
-				ERROR("group section not found");
-			sec->grouped = 1;
-			log_debug("marking section %s (%d) as grouped\n",
-			          sec->name, sec->index);
-			data++;
-		}
-	}
-}
-
 static char *kpatch_section_function_name(struct section *sec)
 {
 	if (is_rela_section(sec))
@@ -1536,7 +1529,7 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 				continue;
 			}
 
-#ifdef __powerpc64__
+#if defined(__powerpc64__) || defined(__s390x__)
 			add_off = 0;
 #else
 			if (rela->type == R_X86_64_PC32 ||
@@ -1642,12 +1635,42 @@ static void kpatch_check_func_profiling_calls(struct kpatch_elf *kelf)
 		DIFF_FATAL("%d function(s) can not be patched", errs);
 }
 
+static bool is_s390_indirect_jump_groupsec(
+        struct kpatch_elf *kelf,
+        struct section *sec)
+{
+	struct section *seclink;
+	unsigned int *data, *end;
+
+	if (sec->sh.sh_type != SHT_GROUP)
+		return false;
+	data = sec->data->d_buf;
+	end = sec->data->d_buf + sec->data->d_size;
+	data++; /* skip first flag word (e.g. GRP_COMDAT) */
+	while (data < end) {
+		seclink = find_section_by_index(&kelf->sections, *data);
+		if (!seclink)
+			ERROR("group section not found");
+		if (strstr(seclink->name, "s390_indirect_jump"))
+			return true;
+		data++;
+	}
+	return false;
+}
+
 static void kpatch_verify_patchability(struct kpatch_elf *kelf)
 {
 	struct section *sec;
 	int errs = 0;
 
 	list_for_each_entry(sec, &kelf->sections, list) {
+		/*
+		 * s390_indirect_jump is a part of .group section. Group
+		 * section reindexing is performed now. Hence ignore this case
+		 */
+		if(is_s390_indirect_jump_groupsec(kelf, sec))
+			continue;
+
 		if (sec->status == CHANGED && !sec->include) {
 			log_normal("changed section %s not selected for inclusion\n",
 				   sec->name);
@@ -1734,6 +1757,18 @@ static void kpatch_include_symbol(struct symbol *sym)
 		kpatch_include_section(sym->sec);
 }
 
+/*
+ *  Include s390x expolines symbols. which is a part of .group section
+ */
+static void kpatch_include_standard_symbols(struct kpatch_elf *kelf)
+{
+	struct symbol *sym;
+	list_for_each_entry(sym, &kelf->symbols, list) {
+		if (!strncmp(sym->name, "__s390_indirect_jump", 20))
+			kpatch_include_symbol(sym);
+	}
+}
+
 static void kpatch_include_standard_elements(struct kpatch_elf *kelf)
 {
 	struct section *sec;
@@ -1766,6 +1801,9 @@ static void kpatch_include_standard_elements(struct kpatch_elf *kelf)
 		    !strcmp(sec->name, ".symtab") ||
 		    !strcmp(sec->name, ".toc") ||
 		    !strcmp(sec->name, ".rodata") ||
+		    !strcmp(sec->name, ".rodata.str") ||
+		    strstr(sec->name, "__s390_indirect_jump") ||
+		    strstr(sec->name, ".group") ||
 		    (!strncmp(sec->name, ".rodata.", 8) &&
 		     strstr(sec->name, ".str1."))) {
 			kpatch_include_section(sec);
@@ -1911,6 +1949,7 @@ static void kpatch_migrate_included_elements(struct kpatch_elf *kelf, struct kpa
 	struct section *sec, *safesec;
 	struct symbol *sym, *safesym;
 	struct kpatch_elf *out;
+	struct group_section *gsec, *gsafesec;
 
 	/* allocate output kelf */
 	out = malloc(sizeof(*out));
@@ -1920,6 +1959,7 @@ static void kpatch_migrate_included_elements(struct kpatch_elf *kelf, struct kpa
 	INIT_LIST_HEAD(&out->sections);
 	INIT_LIST_HEAD(&out->symbols);
 	INIT_LIST_HEAD(&out->strings);
+	INIT_LIST_HEAD(&out->groupsec);
 
 	/* migrate included sections from kelf to out */
 	list_for_each_entry_safe(sec, safesec, &kelf->sections, list) {
@@ -1945,6 +1985,12 @@ static void kpatch_migrate_included_elements(struct kpatch_elf *kelf, struct kpa
 			/* break link to non-included section */
 			sym->sec = NULL;
 
+	}
+
+	/* migrate group section info to out */
+	list_for_each_entry_safe(gsec, gsafesec, &kelf->groupsec, list) {
+		list_del(&gsec->list);
+		list_add_tail(&gsec->list, &out->groupsec);
 	}
 
 	*kelfout = out;
@@ -2044,20 +2090,6 @@ static int parainstructions_group_size(struct kpatch_elf *kelf, int offset)
 	return size;
 }
 
-static int altinstructions_group_size(struct kpatch_elf *kelf, int offset)
-{
-	static int size = 0;
-	char *str;
-
-	if (!size) {
-		str = getenv("ALT_STRUCT_SIZE");
-		if (!str)
-			ERROR("ALT_STRUCT_SIZE not set");
-		size = atoi(str);
-	}
-
-	return size;
-}
 
 static int smp_locks_group_size(struct kpatch_elf *kelf, int offset)
 {
@@ -2073,6 +2105,22 @@ static int static_call_sites_group_size(struct kpatch_elf *kelf, int offset)
 		str = getenv("STATIC_CALL_STRUCT_SIZE");
 		if (!str)
 			ERROR("STATIC_CALL_STRUCT_SIZE not set");
+		size = atoi(str);
+	}
+
+	return size;
+}
+#endif
+#if defined __s390x__ || defined __x86_64__
+static int altinstructions_group_size(struct kpatch_elf *kelf, int offset)
+{
+	static int size = 0;
+	char *str;
+
+	if (!size) {
+		str = getenv("ALT_STRUCT_SIZE");
+		if (!str)
+			ERROR("ALT_STRUCT_SIZE not set");
 		size = atoi(str);
 	}
 
@@ -2215,6 +2263,12 @@ static struct special_section special_sections[] = {
 	{
 		.name		= "__barrier_nospec_fixup",
 		.group_size	= fixup_barrier_nospec_group_size,
+	},
+#endif
+#ifdef __s390x__
+	{
+		.name		= ".altinstructions",
+		.group_size	= altinstructions_group_size,
 	},
 #endif
 	{},
@@ -2576,8 +2630,24 @@ static void kpatch_check_relocations(struct kpatch_elf *kelf)
 		if (!is_rela_section(sec))
 			continue;
 		list_for_each_entry(rela, &sec->relas, list) {
+			/*
+			 * The size of the sdata->d_size could be zero.
+			 * Usecase:
+			 * [327] .bss.__key.18
+			 *        NOBITS 0000000000000000 007284 000000 00   0   0  2
+			 *
+			 * Relocation section '.rela.text.copy_signal' at offset 0x7f9c8 contains 19 entries:
+			 * (...)
+			 * 0000000000000090  000000f90000001a R_390_GOTENT 0000000000000000 __key.18 + 2
+			 *
+			 *   8e:   c4 48 00 00 00 00       lgrl    %r4,8e <copy_signal+0x8e>
+			 *               90: R_390_GOTENT        __key.18+0x2
+			 * which is a valid relocation
+			 */
 			if (rela->sym->sec) {
 				sdata = rela->sym->sec->data;
+				if (!sdata->d_size)
+					continue;
 				if ((long)rela->sym->sym.st_value + rela->addend > (long)sdata->d_size) {
 					ERROR("out-of-range relocation %s+%lx in %s", rela->sym->name,
 							rela->addend, sec->name);
@@ -2620,10 +2690,19 @@ static void kpatch_mark_ignored_sections(struct kpatch_elf *kelf)
 	struct rela *rela;
 	char *name;
 
-	/* Ignore any discarded sections */
+	/*
+	 * Ignore any discarded sections
+	 *
+	 * Ignore s390x expolines table as of now. These may contain R_390_PC32
+	 * relocation type which may cause relocation overflow.
+	 */
 	list_for_each_entry(sec, &kelf->sections, list) {
 		if (!strncmp(sec->name, ".discard", 8) ||
-		    !strncmp(sec->name, ".rela.discard", 13))
+			!strncmp(sec->name, ".rela.discard", 13) ||
+			strstr(sec->name, ".s390_return_mem") ||
+			strstr(sec->name, ".s390_return_reg") ||
+			strstr(sec->name, ".s390_indirect_jump") ||
+			strstr(sec->name, ".s390_indirect_call"))
 			sec->ignore = 1;
 	}
 
@@ -2913,8 +2992,8 @@ static void kpatch_create_patches_sections(struct kpatch_elf *kelf,
 		if (sym->bind == STB_LOCAL && symbol.global)
 			ERROR("can't find local symbol '%s' in symbol table", sym->name);
 
-		log_debug("lookup for %s: obj=%s sympos=%lu size=%lu",
-			  sym->name, symbol.objname, symbol.sympos,
+		log_debug("lookup for %s: obj=%s sympos=%lu size=%lu\n",
+		          sym->name, symbol.objname, symbol.sympos,
 			  symbol.size);
 
 		/*
@@ -3239,6 +3318,13 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 				special = true;
 
 		list_for_each_entry_safe(rela, safe, &sec->relas, list) {
+			/*
+			 * s390_indirect_jump is a global hidden symbol and is
+			 * present in each object file which references it.
+			 * They can be used as normal relas.
+			 */
+			if (strstr(rela->sym->name, "s390_indirect_jump"))
+				continue;
 			if (!rela->need_dynrela) {
 				rela->sym->strip = SYMBOL_USED;
 				continue;
@@ -3265,8 +3351,8 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 				ERROR("can't find symbol '%s' in symbol table",
 				      rela->sym->name);
 
-			log_debug("lookup for %s: obj=%s sympos=%lu",
-			          rela->sym->name, symbol.objname,
+			log_debug("lookup for %s: obj=%s sympos=%lu\n",
+				  rela->sym->name, symbol.objname,
 				  symbol.sympos);
 
 			/* Fill in ksyms[index] */
@@ -3411,7 +3497,7 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 	int nr, index;
 	struct section *sec, *relasec;
 	struct symbol *sym;
-	struct rela *rela, *mcount_rela;
+	struct rela *mcount_rela;
 	void **funcs;
 	unsigned long insn_offset;
 
@@ -3438,7 +3524,7 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 		}
 
 #ifdef __x86_64__
-
+		struct rela *rela;
 		rela = list_first_entry(&sym->sec->rela->relas, struct rela, list);
 
 		/*
@@ -3479,9 +3565,12 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 
 			rela->type = R_X86_64_PC32;
 		}
-
+#elif __s390x__
+		/* brcl 0,0 is present at beginning of each function with mhotpatch */
+		insn_offset = 0;
 #else /* __powerpc64__ */
 {
+		struct rela *rela;
 		bool found = false;
 
 		list_for_each_entry(rela, &sym->sec->rela->relas, list)
@@ -3520,8 +3609,7 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
  * sections, but the rela entries that referenced them were converted to
  * dynrelas and are no longer needed.
  */
-static void kpatch_strip_unneeded_syms(struct kpatch_elf *kelf,
-				       struct lookup_table *table)
+static void kpatch_strip_unneeded_syms(struct kpatch_elf *kelf)
 {
 	struct symbol *sym, *safe;
 
@@ -3761,6 +3849,7 @@ int main(int argc, char *argv[])
 	kpatch_elf_free(kelf_orig);
 
 	kpatch_include_standard_elements(kelf_patched);
+	kpatch_include_standard_symbols(kelf_patched);
 	num_changed = kpatch_include_changed_functions(kelf_patched);
 	callbacks_exist = kpatch_include_callback_elements(kelf_patched);
 	kpatch_include_force_elements(kelf_patched);
@@ -3814,7 +3903,7 @@ int main(int argc, char *argv[])
 	 *  throughout the structure.
 	 */
 	kpatch_reorder_symbols(kelf_out);
-	kpatch_strip_unneeded_syms(kelf_out, lookup);
+	kpatch_strip_unneeded_syms(kelf_out);
 	kpatch_reindex_elements(kelf_out);
 
 	/*
@@ -3837,6 +3926,7 @@ int main(int argc, char *argv[])
 	kpatch_create_shstrtab(kelf_out);
 	kpatch_create_strtab(kelf_out);
 	kpatch_create_symtab(kelf_out);
+	kpatch_reindex_group_sections(kelf_out);
 	kpatch_dump_kelf(kelf_out);
 	kpatch_write_output_elf(kelf_out, kelf_patched->elf, output_obj, 0664);
 

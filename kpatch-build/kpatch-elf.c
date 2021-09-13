@@ -151,6 +151,24 @@ int offset_of_string(struct list_head *list, char *name)
 	return index;
 }
 
+/*
+ * Check if the symbol name contains LC or L1^B.
+ *
+ * On s390x,
+ * .L1^B19 -> .rodata.str (bug_table)
+ * .LC0 -> .rodata.str1.2
+ *
+ *  In these cases, return true and rela->string should point to
+ *  rela->sym->sec->data->d_buf + value of the associated symbol.
+ */
+
+static bool lc_string(struct rela *rela) {
+	if (!strncmp(rela->sym->name, ".LC", 3) || !strncmp(rela->sym->name, ".L1", 3))
+		return true;
+	else
+		return false;
+}
+
 void kpatch_create_rela_list(struct kpatch_elf *kelf, struct section *sec)
 {
 	int index = 0, skip = 0;
@@ -193,7 +211,10 @@ void kpatch_create_rela_list(struct kpatch_elf *kelf, struct section *sec)
 			ERROR("could not find rela entry symbol\n");
 		if (rela->sym->sec &&
 		    (rela->sym->sec->sh.sh_flags & SHF_STRINGS)) {
-			rela->string = rela->sym->sec->data->d_buf + rela->addend;
+			if(lc_string(rela))
+				rela->string = rela->sym->sec->data->d_buf + rela->sym->sym.st_value;
+			else
+				rela->string = rela->sym->sec->data->d_buf + rela->addend;
 			if (!rela->string)
 				ERROR("could not lookup rela string for %s+%ld",
 				      rela->sym->name, rela->addend);
@@ -321,18 +342,24 @@ void kpatch_create_symbol_list(struct kpatch_elf *kelf)
 static void kpatch_find_func_profiling_calls(struct kpatch_elf *kelf)
 {
 	struct symbol *sym;
-	struct rela *rela;
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		if (sym->type != STT_FUNC || !sym->sec || !sym->sec->rela)
 			continue;
 #ifdef __powerpc64__
+		struct rela *rela;
 		list_for_each_entry(rela, &sym->sec->rela->relas, list) {
 			if (!strcmp(rela->sym->name, "_mcount")) {
 				sym->has_func_profiling = 1;
 				break;
 			}
 		}
+#elif __s390x__
+		unsigned char *insn;
+		insn = sym->sec->data->d_buf;
+		if (insn[0] == 0xc0 && insn[1] == 0x04 && insn[2] == 0x00)
+			sym->has_func_profiling = 1;
 #else
+		struct rela *rela;
 		rela = list_first_entry(&sym->sec->rela->relas, struct rela,
 					list);
 		if ((rela->type != R_X86_64_NONE &&
@@ -723,6 +750,116 @@ void kpatch_reindex_elements(struct kpatch_elf *kelf)
 		else if (sym->sym.st_shndx != SHN_ABS &&
 			 sym->sym.st_shndx != SHN_LIVEPATCH)
 			sym->sym.st_shndx = SHN_UNDEF;
+	}
+}
+
+void kpatch_mark_grouped_sections(struct kpatch_elf *kelf)
+{
+	struct section *groupsec, *sec;
+	struct group_section *gsec;
+	struct symbol *tsym;
+	unsigned int *data, *end, i;
+
+	INIT_LIST_HEAD(&kelf->groupsec);
+
+	list_for_each_entry(groupsec, &kelf->sections, list) {
+		i = 0;
+		if (groupsec->sh.sh_type != SHT_GROUP)
+			continue;
+		/*
+		 * a. Maintain the section index in struct section and struct
+		 *    group_section. This is later used to compare if the reindexed
+		 *    section and group_section matches.
+		 * b. Maintain the secnames, symnames to later update
+		 *    group section members sh_link and sh_info.
+		 */
+		groupsec->groupindex = groupsec->index;
+		data = groupsec->data->d_buf;
+		end = groupsec->data->d_buf + groupsec->data->d_size;
+		data++; /* skip first flag word (e.g. GRP_COMDAT) */
+		gsec = malloc(sizeof(*gsec));
+		if (!gsec)
+			ERROR("malloc");
+		gsec->groupindex = groupsec->index;
+		/* Maintain names of all section link. Use this info after reindexing */
+		gsec->secnames = malloc((groupsec->data->d_size/sizeof(*data)) * sizeof(char **));
+		if (!gsec->secnames)
+			ERROR("malloc");
+		gsec->symnames = malloc((groupsec->data->d_size/sizeof(*data)) * sizeof(char **));
+		if (!gsec->symnames)
+			ERROR("malloc");
+
+		while (data < end) {
+			sec = find_section_by_index(&kelf->sections, *data);
+			if (!sec)
+				ERROR("group section not found");
+			sec->grouped = 1;
+			log_debug("marking section %s (%d) as grouped\n",
+				  sec->name, sec->index);
+
+			gsec->secnames[i] = strdup(sec->name);
+			tsym = find_symbol_by_index(&kelf->symbols, groupsec->sh.sh_info);
+			if (!tsym)
+				ERROR("symbol not found");
+			gsec->symnames[i] = strdup(tsym->name);
+			data++;
+			i++;
+		}
+		list_add_tail(&gsec->list, &kelf->groupsec);
+	}
+}
+
+/*
+ * kpatch-build reindexes the sections and symbols. When these are reindexed,
+ * group section needs reindexing as well.
+ *
+ * In s390x, expolines like __s390_indirect_jump_r1 are the referenced in
+ * .group sections.
+ */
+void kpatch_reindex_group_sections(struct kpatch_elf *kelf)
+{
+	struct section *sec, *subsec, *tsec;
+	struct symbol *tsym;
+	struct group_section *groupsec;
+	unsigned int *data, *end, i = 0;
+	unsigned int *newdata;
+
+	list_for_each_entry(groupsec, &kelf->groupsec, list) {
+		i = 0;
+		list_for_each_entry(sec, &kelf->sections, list) {
+			if (sec->groupindex != groupsec->groupindex)
+				continue;
+			data = sec->data->d_buf;
+			end = sec->data->d_buf + sec->data->d_size;
+			newdata = malloc(sec->data->d_size);
+			if (!newdata)
+				ERROR("malloc");
+
+			newdata[0] = GRP_COMDAT;
+			data++;
+			while (data < end) {
+				subsec = find_section_by_name(&kelf->sections, groupsec->secnames[i]);
+				if (!subsec)
+					ERROR("group section");
+
+				tsym = find_symbol_by_name(&kelf->symbols, groupsec->symnames[i]);
+				if (!tsym)
+					ERROR("symbol not found");
+
+				/* Update the new index in the group section */
+				newdata[++i] = subsec->index;
+				tsec = find_section_by_name(&kelf->sections, ".symtab");
+				if (!tsec)
+					ERROR("section not found");
+
+
+				sec->sh.sh_link = tsec->index;
+				sec->sh.sh_info = tsym->index;
+				data++;
+			}
+			sec->data->d_buf = newdata;
+			break;
+		}
 	}
 }
 
