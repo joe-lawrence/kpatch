@@ -22,7 +22,9 @@ PLUGIN_CFLAGS := $(filter-out -Wconversion, $(CFLAGS))
 PLUGIN_CFLAGS += -shared -I$(GCC_PLUGINS_DIR)/include \
 		   -Igcc-plugins -fPIC -fno-rtti -O2 -Wall
 else ifneq ($(ARCH),x86_64)
-$(error Unsupported architecture ${ARCH}, check https://github.com/dynup/kpatch/#supported-architectures)
+  ifneq ($(ARCH),aarch64)
+    $(error Unsupported architecture ${ARCH}, check https://github.com/dynup/kpatch/#supported-architectures)
+  endif
 endif
 
 

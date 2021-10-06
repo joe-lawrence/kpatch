@@ -135,6 +135,8 @@ struct rela *find_rela_by_offset(struct section *relasec, unsigned int offset)
 unsigned int absolute_rela_type(struct kpatch_elf *kelf)
 {
 	switch(kelf->arch) {
+	case AARCH64:
+		return R_AARCH64_ABS64;
 	case PPC64:
 		return R_PPC64_ADDR64;
 	case X86_64:
