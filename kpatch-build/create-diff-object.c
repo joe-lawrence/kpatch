@@ -159,6 +159,8 @@ static bool is_gcc6_localentry_bundled_sym(struct kpatch_elf *kelf,
 					  struct symbol *sym)
 {
 	switch(kelf->arch) {
+	case AARCH64:
+		return false;
 	case PPC64:
 		return ((PPC64_LOCAL_ENTRY_OFFSET(sym->sym.st_other) != 0) &&
 			sym->sym.st_value == 8);
@@ -210,6 +212,24 @@ static struct rela *toc_rela(const struct rela *rela)
 	/* Will return NULL for .toc constant entries */
 	return find_rela_by_offset(rela->sym->sec->rela,
 				   (unsigned int)rela->addend);
+}
+
+/*
+ * Mapping symbols are used to mark and label the transitions between code and
+ * data in elf files. They begin with a "$" dollar symbol. Don't correlate them
+ * as they often all have the same name either "$x" to mark the start of code
+ * or "$d" to mark the start of data.
+ */
+static bool kpatch_is_mapping_symbol(struct kpatch_elf *kelf, struct symbol *sym)
+{
+	if (kelf->arch != AARCH64)
+		return 0;
+
+	if (sym->name && sym->name[0] == '$'
+		&& sym->type == STT_NOTYPE \
+		&& sym->bind == STB_LOCAL)
+		return 1;
+	return 0;
 }
 
 /*
@@ -562,6 +582,13 @@ static void kpatch_compare_correlated_section(struct section *sec)
 		goto out;
 	}
 
+	/* As above but for aarch64 */
+	if (!strcmp(sec->name, ".rela__patchable_function_entries") ||
+	    !strcmp(sec->name, "__patchable_function_entries")) {
+		sec->status = SAME;
+		goto out;
+	}
+
 	if (sec1->sh.sh_size != sec2->sh.sh_size ||
 	    sec1->data->d_size != sec2->data->d_size) {
 		sec->status = CHANGED;
@@ -760,6 +787,8 @@ static bool kpatch_line_macro_change_only(struct kpatch_elf *kelf,
 					  struct section *sec)
 {
 	switch(kelf->arch) {
+	case AARCH64:
+		return false;	/* TODO */
 	case PPC64:
 		return kpatch_line_macro_change_only_ppc64le(sec);
 	case X86_64:
@@ -1004,15 +1033,15 @@ static void kpatch_correlate_sections(struct list_head *seclist_orig,
 	}
 }
 
-static void kpatch_correlate_symbols(struct list_head *symlist_orig,
-		struct list_head *symlist_patched)
+static void kpatch_correlate_symbols(struct kpatch_elf *kelf_orig,
+		struct kpatch_elf *kelf_patched)
 {
 	struct symbol *sym_orig, *sym_patched;
 
-	list_for_each_entry(sym_orig, symlist_orig, list) {
+	list_for_each_entry(sym_orig, &kelf_orig->symbols, list) {
 		if (sym_orig->twin)
 			continue;
-		list_for_each_entry(sym_patched, symlist_patched, list) {
+		list_for_each_entry(sym_patched, &kelf_patched->symbols, list) {
 			if (kpatch_mangled_strcmp(sym_orig->name, sym_patched->name) ||
 			    sym_orig->type != sym_patched->type || sym_patched->twin)
 				continue;
@@ -1036,6 +1065,9 @@ static void kpatch_correlate_symbols(struct list_head *symlist_orig,
 			 */
 			if (sym_orig->type == STT_NOTYPE &&
 			    !strncmp(sym_orig->name, ".LC", 3))
+				continue;
+
+			if (kpatch_is_mapping_symbol(kelf_orig, sym_orig))
 				continue;
 
 			/* group section symbols must have correlated sections */
@@ -1442,7 +1474,7 @@ static void kpatch_correlate_elfs(struct kpatch_elf *kelf_orig,
 		struct kpatch_elf *kelf_patched)
 {
 	kpatch_correlate_sections(&kelf_orig->sections, &kelf_patched->sections);
-	kpatch_correlate_symbols(&kelf_orig->symbols, &kelf_patched->symbols);
+	kpatch_correlate_symbols(kelf_orig, kelf_patched);
 }
 
 static void kpatch_compare_correlated_elements(struct kpatch_elf *kelf)
@@ -1546,6 +1578,7 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 			}
 
 			switch(kelf->arch) {
+			case AARCH64:
 			case PPC64:
 				add_off = 0;
 				break;
@@ -1582,7 +1615,8 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 				end = sym->sym.st_value + sym->sym.st_size;
 
 				if (!is_text_section(sym->sec) &&
-				    rela->type == R_X86_64_32S &&
+				    (rela->type == R_X86_64_32S ||
+				     rela->type == R_AARCH64_ABS64) &&
 				    rela->addend == (long)sym->sec->sh.sh_size &&
 				    end == (long)sym->sec->sh.sh_size) {
 
@@ -2211,7 +2245,7 @@ static struct special_section special_sections[] = {
 	},
 	{
 		.name		= ".altinstructions",
-		.arch		= X86_64,
+		.arch		= AARCH64 | X86_64,
 		.group_size	= altinstructions_group_size,
 	},
 	{
