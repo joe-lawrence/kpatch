@@ -110,8 +110,9 @@ struct string {
 };
 
 enum architecture {
-	PPC64  = 0x1 << 0,
-	X86_64 = 0x1 << 1,
+	AARCH64 = 0x1 << 0,
+	PPC64   = 0x1 << 1,
+	X86_64  = 0x1 << 2,
 };
 
 struct kpatch_elf {
