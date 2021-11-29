@@ -1,0 +1,11 @@
+diff -Nupr src.orig/net/core/dev.c src/net/core/dev.c
+--- src.orig/net/core/dev.c	2021-11-29 08:27:08.141500925 -0500
++++ src/net/core/dev.c	2021-11-29 08:27:14.792503174 -0500
+@@ -5269,6 +5269,7 @@ skip_classify:
+ 		case RX_HANDLER_PASS:
+ 			break;
+ 		default:
++			printk("BUG!\n");
+ 			BUG();
+ 		}
+ 	}
