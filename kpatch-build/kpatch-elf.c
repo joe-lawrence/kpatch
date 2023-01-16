@@ -121,6 +121,20 @@ struct symbol *find_symbol_by_name(struct list_head *list, const char *name)
 	return NULL;
 }
 
+struct symbol *find_symbol_by_offset(struct list_head *list, struct section *sec,
+				     unsigned int offset)
+{
+	struct symbol *sym;
+
+	list_for_each_entry(sym, list, list)
+		if (sym->type == STT_FUNC &&
+		    sym->sec == sec &&
+		    sym->sym.st_value == offset)
+			return sym;
+
+	return NULL;
+}
+
 struct rela *find_rela_by_offset(struct section *relasec, unsigned int offset)
 {
 	struct rela *rela;
@@ -397,6 +411,89 @@ static void kpatch_create_section_list(struct kpatch_elf *kelf)
 		ERROR("expected NULL");
 }
 
+/*
+ * Some x86 kernels have NOP function padding [1] for which objtool [2]
+ * adds ELF function symbols with prefix "__pfx_" to indicate the start
+ * of a function, inclusive of NOP-padding.  Find the prefix symbols and
+ * link them to their corresponding function symbols at an expected
+ * offset.
+ *
+ * A few examples:
+ *
+ *    Value          Size Type    Bind   Vis      Ndx Name
+ * (fork.o, simple case)
+ * 0000000000000000     0 SECTION LOCAL  DEFAULT   31 .text.get_task_mm
+ * 0000000000000000    16 FUNC    GLOBAL DEFAULT   31 __pfx_get_task_mm
+ * 0000000000000010    91 FUNC    GLOBAL DEFAULT   31 get_task_mm
+ *
+ * (fork.o, multiple function aliases)
+ * 0000000000000000     0 SECTION LOCAL  DEFAULT  190 .text.__do_sys_fork
+ * 0000000000000000    16 FUNC    GLOBAL DEFAULT  190 __pfx___x64_sys_fork
+ * 0000000000000010    49 FUNC    LOCAL  DEFAULT  190 __do_sys_fork
+ * 0000000000000010    49 FUNC    GLOBAL DEFAULT  190 __ia32_sys_fork
+ * 0000000000000010    49 FUNC    GLOBAL DEFAULT  190 __x64_sys_fork
+ *
+ * (fork.o multiple functions in one section)
+ * 0000000000000000     0 SECTION LOCAL  DEFAULT   59 .init.text
+ * 0000000000000000    16 FUNC    LOCAL  DEFAULT   59 __pfx_coredump_filter_setup
+ * 0000000000000010    40 FUNC    LOCAL  DEFAULT   59 coredump_filter_setup
+ * 0000000000000038    16 FUNC    WEAK   DEFAULT   59 __pfx_arch_task_cache_init
+ * 0000000000000048    10 FUNC    WEAK   DEFAULT   59 arch_task_cache_init
+ * 0000000000000052    16 FUNC    GLOBAL DEFAULT   59 __pfx_fork_init
+ * 0000000000000062   357 FUNC    GLOBAL DEFAULT   59 fork_init
+ * 00000000000001c7    16 FUNC    GLOBAL DEFAULT   59 __pfx_fork_idle
+ * 00000000000001d7   214 FUNC    GLOBAL DEFAULT   59 fork_idle
+ * 00000000000002ad    16 FUNC    GLOBAL DEFAULT   59 __pfx_mm_cache_init
+ * 00000000000002bd    72 FUNC    GLOBAL DEFAULT   59 mm_cache_init
+ * 0000000000000305    16 FUNC    GLOBAL DEFAULT   59 __pfx_proc_caches_init
+ * 0000000000000315   192 FUNC    GLOBAL DEFAULT   59 proc_caches_init
+ *
+ * (fork.o, function without nop padding / __pfx_ symbol)
+ * 0000000000000000     0 SECTION LOCAL  DEFAULT   99 .text.unlikely.__mmdrop
+ * 0000000000000000    48 FUNC    LOCAL  DEFAULT   99 __mmdrop.cold
+ *
+ * (kpatch-build generated tmp.ko, multple functions in one section, no __pfx_ symbols)
+ * 0000000000000000     0 SECTION LOCAL  DEFAULT   10 .text.unlikely.callback_info.isra.0
+ * 0000000000000010    65 FUNC    LOCAL  DEFAULT   10 callback_info.isra.0
+ * 0000000000000061    54 FUNC    LOCAL  DEFAULT   10 callback_info.isra.0
+ * 00000000000000a7    54 FUNC    LOCAL  DEFAULT   10 callback_info.isra.0
+ *
+ * [1] bea75b33895f ("x86/Kconfig: Introduce function padding")
+ * [2] 9f2899fe36a6 ("objtool: Add option to generate prefix symbols")
+ */
+static void kpatch_link_prefixed_functions(struct kpatch_elf *kelf)
+{
+	struct symbol *sym, *pfx_sym;
+	unsigned int pfx_nop_offset;
+
+	if (kelf->arch != X86_64)
+		return;
+
+	pfx_nop_offset = 0x10;
+
+	log_debug("\n=== prefixed function links ===\n");
+	list_for_each_entry(sym, &kelf->symbols, list) {
+
+		if (sym->type != STT_FUNC || sym->func_prefix ||
+		    sym->sym.st_value < pfx_nop_offset)
+			continue;
+
+		pfx_sym = find_symbol_by_offset(&kelf->symbols, sym->sec,
+				(unsigned) sym->sym.st_value - pfx_nop_offset);
+		if (!pfx_sym) {
+			printf("%s NOTE: could not find corresponding prefix function symbol for %s in section %s\n",
+				childobj, sym->name, sym->sec->name);
+			continue;
+		}
+
+		pfx_sym->func_prefix = true;
+		sym->prefix_link = pfx_sym;
+
+		log_debug("(%s) %s -> %s\n", sym->sec->name, sym->name,
+			pfx_sym->name);
+	}
+}
+
 static void kpatch_create_symbol_list(struct kpatch_elf *kelf)
 {
 	struct section *symtab;
@@ -459,6 +556,7 @@ static void kpatch_create_symbol_list(struct kpatch_elf *kelf)
 		log_debug("\n");
 	}
 
+	kpatch_link_prefixed_functions(kelf);
 }
 
 struct kpatch_elf *kpatch_elf_open(const char *name)

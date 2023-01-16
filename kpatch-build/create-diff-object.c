@@ -239,7 +239,7 @@ static void kpatch_bundle_symbols(struct kpatch_elf *kelf)
 
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		if (is_bundleable(sym)) {
-			if (sym->sym.st_value != 0 &&
+			if (sym->sym.st_value != 0 && !sym->prefix_link &&
 			    !is_gcc6_localentry_bundled_sym(kelf, sym)) {
 				ERROR("symbol %s at offset %lu within section %s, expected 0",
 				      sym->name, sym->sym.st_value,
@@ -1913,6 +1913,8 @@ static int kpatch_include_changed_functions(struct kpatch_elf *kelf)
 		    sym->type == STT_FUNC) {
 			changed_nr++;
 			kpatch_include_symbol(sym);
+			if (sym->prefix_link)
+				kpatch_include_symbol(sym->prefix_link);
 		}
 
 		if (sym->type == STT_FILE)
@@ -1927,7 +1929,8 @@ static void kpatch_print_changes(struct kpatch_elf *kelf)
 	struct symbol *sym;
 
 	list_for_each_entry(sym, &kelf->symbols, list) {
-		if (!sym->include || !sym->sec || sym->type != STT_FUNC || sym->parent)
+		if (!sym->include || !sym->sec || sym->type != STT_FUNC ||
+		    sym->parent || sym->func_prefix)
 			continue;
 		if (sym->status == NEW)
 			log_normal("new function: %s\n", sym->name);

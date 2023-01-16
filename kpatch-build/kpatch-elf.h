@@ -91,6 +91,8 @@ struct symbol {
 		enum symbol_strip strip; /* used in the output elf */
 	};
 	int has_func_profiling;
+	bool func_prefix;
+	struct symbol *prefix_link;
 };
 
 struct rela {
