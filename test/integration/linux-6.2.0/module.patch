@@ -1,4 +1,8 @@
-kpatch module integration test
+From 4ad0397efd708a961ecf733bc649783565a6f2db Mon Sep 17 00:00:00 2001
+From: Joe Lawrence <joe.lawrence@redhat.com>
+Date: Thu, 19 Jan 2023 16:43:46 -0500
+Subject: [PATCH] kpatch module integration test
+Content-type: text/plain
 
 This tests several things related to the patching of modules:
 
@@ -12,22 +16,44 @@ This tests several things related to the patching of modules:
 - jump labels (5.8+ kernels only) -- including dynamic printk
 
 Signed-off-by: Josh Poimboeuf <jpoimboe@redhat.com>
+---
+ fs/nfsd/export.c         | 31 +++++++++++++++++++++++++++++++
+ net/netlink/af_netlink.c |  5 +++++
+ 2 files changed, 36 insertions(+)
 
-diff -Nupr src.orig/fs/nfsd/export.c src/fs/nfsd/export.c
---- src.orig/fs/nfsd/export.c	2023-01-12 11:20:07.174710504 -0500
-+++ src/fs/nfsd/export.c	2023-01-12 11:20:46.075941153 -0500
-@@ -1294,6 +1294,10 @@ static void exp_flags(struct seq_file *m
+diff --git a/fs/nfsd/export.c b/fs/nfsd/export.c
+index 668c7527b17e..a3122ee61466 100644
+--- a/fs/nfsd/export.c
++++ b/fs/nfsd/export.c
+@@ -1294,6 +1294,27 @@ static void exp_flags(struct seq_file *m, int flag, int fsid,
  	}
  }
  
-+#include <linux/version.h>
++#include "kpatch-macros.h"
++static int pre_patch_callback(patch_object *obj)
++{
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
++	static DEFINE_STATIC_KEY_TRUE(kpatch_key);
++
++	if (static_branch_unlikely(&memcg_kmem_enabled_key))
++		printk("kpatch: memcg_kmem_enabled_key\n");
++
++	BUG_ON(!static_branch_likely(&kpatch_key));
++	static_branch_disable(&kpatch_key);
++	BUG_ON(static_branch_likely(&kpatch_key));
++	static_branch_enable(&kpatch_key);
++#endif
++       return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(pre_patch_callback);
++
 +extern char *kpatch_string(void);
 +
 +__attribute__((optimize("-fno-optimize-sibling-calls")))
  static int e_show(struct seq_file *m, void *p)
  {
  	struct cache_head *cp = p;
-@@ -1301,12 +1305,36 @@ static int e_show(struct seq_file *m, vo
+@@ -1301,12 +1322,22 @@ static int e_show(struct seq_file *m, void *p)
  	struct cache_detail *cd = m->private;
  	bool export_stats = is_export_stats_file(m);
  
@@ -40,20 +66,6 @@ diff -Nupr src.orig/fs/nfsd/export.c src/fs/nfsd/export.c
 +
 +	pr_debug("kpatch: pr_debug() test\n");
 +
-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
-+{
-+	static DEFINE_STATIC_KEY_TRUE(kpatch_key);
-+
-+	if (static_branch_unlikely(&memcg_kmem_enabled_key))
-+		printk("kpatch: memcg_kmem_enabled_key\n");
-+
-+	BUG_ON(!static_branch_likely(&kpatch_key));
-+	static_branch_disable(&kpatch_key);
-+	BUG_ON(static_branch_likely(&kpatch_key));
-+	static_branch_enable(&kpatch_key);
-+}
-+#endif
-+
  	if (p == SEQ_START_TOKEN) {
  		seq_puts(m, "# Version 1.1\n");
  		if (export_stats)
@@ -64,10 +76,11 @@ diff -Nupr src.orig/fs/nfsd/export.c src/fs/nfsd/export.c
  		return 0;
  	}
  
-diff -Nupr src.orig/net/netlink/af_netlink.c src/net/netlink/af_netlink.c
---- src.orig/net/netlink/af_netlink.c	2023-01-12 11:20:07.603713047 -0500
-+++ src/net/netlink/af_netlink.c	2023-01-12 11:20:46.076941159 -0500
-@@ -2970,4 +2970,9 @@ panic:
+diff --git a/net/netlink/af_netlink.c b/net/netlink/af_netlink.c
+index bca2a470ccad..53ede086f39e 100644
+--- a/net/netlink/af_netlink.c
++++ b/net/netlink/af_netlink.c
+@@ -2970,4 +2970,9 @@ static int __init netlink_proto_init(void)
  	panic("netlink_init: Cannot allocate nl_table\n");
  }
  
@@ -77,3 +90,6 @@ diff -Nupr src.orig/net/netlink/af_netlink.c src/net/netlink/af_netlink.c
 +}
 +
  core_initcall(netlink_proto_init);
+-- 
+2.39.0
+
