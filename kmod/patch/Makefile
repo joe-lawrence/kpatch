@@ -9,7 +9,7 @@ obj-m += $(KPATCH_NAME).o
 ldflags-y += -T $(src)/kpatch.lds
 targets += kpatch.lds
 
-$(KPATCH_NAME)-objs += patch-hook.o output.o
+$(KPATCH_NAME)-objs += livepatch-patch-hook.o output.o
 
 all: $(KPATCH_NAME).ko
 
@@ -18,8 +18,8 @@ $(KPATCH_NAME).ko:
 
 $(obj)/$(KPATCH_NAME).o: $(src)/kpatch.lds
 
-patch-hook.o: patch-hook.c kpatch-patch-hook.c livepatch-patch-hook.c
-	$(KPATCH_MAKE) patch-hook.o
+livepatch-patch-hook.o: livepatch-patch-hook.c
+	$(KPATCH_MAKE) livepatch-patch-hook.o
 
 clean:
 	$(RM) -Rf .*.o.cmd .*.ko.cmd .tmp_versions $(BUILDABLE_OBJS) *.ko *.mod.c \
