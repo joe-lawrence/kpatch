@@ -37,7 +37,6 @@
 set -o pipefail
 
 BASE="$PWD"
-SCRIPTDIR="$(readlink -f "$(dirname "$(type -p "$0")")")"
 ARCH="$(uname -m)"
 CPUS="$(getconf _NPROCESSORS_ONLN)"
 CACHEDIR="${CACHEDIR:-$HOME/.kpatch}"
@@ -63,7 +62,6 @@ CLANG="${CROSS_COMPILE:-}clang"
 LD="${CROSS_COMPILE:-}ld"
 LLD="${CROSS_COMPILE:-}ld.lld"
 READELF="${CROSS_COMPILE:-}readelf"
-OBJCOPY="${CROSS_COMPILE:-}objcopy"
 
 warn() {
 	echo "ERROR: $1" >&2
@@ -177,7 +175,6 @@ cleanup() {
 	[[ "$DEBUG" -eq 0 ]] && rm -rf "$TEMPDIR"
 	rm -rf "$RPMTOPDIR"
 	unset KCFLAGS
-	unset KCPPFLAGS
 }
 
 clean_cache() {
@@ -246,23 +243,6 @@ find_dirs() {
 	else
 		return 1
 	fi
-}
-
-find_core_symvers() {
-	SYMVERSFILE=""
-	if [[ -e "$SCRIPTDIR/create-diff-object" ]]; then
-		# git repo
-		SYMVERSFILE="$DATADIR/core/Module.symvers"
-	elif [[ -e "$SCRIPTDIR/../libexec/kpatch/create-diff-object" ]]; then
-		# installation path
-		if [[ -e "$SCRIPTDIR/../lib/kpatch/$ARCHVERSION/Module.symvers" ]]; then
-			SYMVERSFILE="$(readlink -f "$SCRIPTDIR/../lib/kpatch/$ARCHVERSION/Module.symvers")"
-		elif [[ -e /lib/modules/$ARCHVERSION/extra/kpatch/Module.symvers ]]; then
-			SYMVERSFILE="$(readlink -f "/lib/modules/$ARCHVERSION/extra/kpatch/Module.symvers")"
-		fi
-	fi
-
-	[[ -e "$SYMVERSFILE" ]]
 }
 
 gcc_version_from_file() {
@@ -1092,33 +1072,18 @@ trace_on
 # Build variables - Set some defaults, then adjust features
 # according to .config and kernel version
 KPATCH_LDFLAGS=""
-USE_KLP=0
 USE_KLP_ARCH=0
 
-if [[ -n "$CONFIG_LIVEPATCH" ]] && (kernel_is_rhel || kernel_version_gte 4.9.0); then
+if use_klp_arch; then
+	USE_KLP_ARCH=1
+	KPATCH_LDFLAGS="--unique=.parainstructions --unique=.altinstructions"
+	CDO_FLAGS="--klp-arch"
+fi
 
-	USE_KLP=1
-
-	if use_klp_arch; then
-		USE_KLP_ARCH=1
-		KPATCH_LDFLAGS="--unique=.parainstructions --unique=.altinstructions"
-		CDO_FLAGS="--klp-arch"
-	fi
-
-	if [[  "$KLP_REPLACE" -eq 1 ]] ; then
-		support_klp_replace || die "The kernel doesn't support klp replace"
-	else
-		export CFLAGS_MODULE="$CFLAGS_MODULE -DKLP_REPLACE_ENABLE=false"
-	fi
+if [[ "$KLP_REPLACE" -eq 1 ]] ; then
+	support_klp_replace || die "The kernel doesn't support klp replace"
 else
-	# No support for livepatch in the kernel. Kpatch core module is needed.
-
-	# There may be ordering bugs, with jump labels and other special
-	# sections.  Use with caution!
-	echo "WARNING: Use of kpatch core module (kpatch.ko) is deprecated!  There may be bugs!" >&2
-
-	find_core_symvers || die "unable to find Module.symvers for kpatch core module"
-	KBUILD_EXTRA_SYMBOLS="$SYMVERSFILE"
+	export CFLAGS_MODULE="$CFLAGS_MODULE -DKLP_REPLACE_ENABLE=false"
 fi
 
 # unsupported kernel option checking
@@ -1271,7 +1236,7 @@ echo "Extracting new and modified ELF sections"
 # If no kpatch module name was provided on the command line:
 #   - For single input .patch, use the patch filename
 #   - For multiple input .patches, use "patch"
-#   - Prefix with "kpatch" or "livepatch" accordingly
+#   - Prefix "livepatch"
 if [[ -z "$MODNAME" ]] ; then
 	if [[ "${#PATCH_LIST[@]}" -eq 1 ]]; then
 		MODNAME="$(basename "${PATCH_LIST[0]}")"
@@ -1281,14 +1246,7 @@ if [[ -z "$MODNAME" ]] ; then
 	else
 		MODNAME="patch"
 	fi
-
-	if [[ "$USE_KLP" -eq 1 ]]; then
-		MODNAME="livepatch-$MODNAME"
-	else
-		MODNAME="kpatch-$MODNAME"
-	fi
-
-	MODNAME="$(module_name_string "$MODNAME")"
+	MODNAME="$(module_name_string "livepatch-$MODNAME")"
 fi
 FILES="$(cat "$TEMPDIR/changed_objs")"
 cd "$TEMPDIR" || die
@@ -1376,9 +1334,6 @@ done
 echo
 
 export KCFLAGS="-I$DATADIR/patch $ARCH_KCFLAGS"
-if [[ "$USE_KLP" -eq 0 ]]; then
-	export KCPPFLAGS="-D__KPATCH_MODULE__"
-fi
 save_env
 
 echo "Building patch module: $MODNAME.ko"
@@ -1393,21 +1348,9 @@ fi
 cd "$TEMPDIR/output" || die
 # $KPATCH_LDFLAGS and result of find used as list, no quotes.
 # shellcheck disable=SC2086,SC2046
-"$LD" -r $KPATCH_LDFLAGS -o ../patch/tmp_output.o $(find . -name "*.o") 2>&1 | logger || die
-
-if [[ "$USE_KLP" -eq 1 ]]; then
-	cp -f "$TEMPDIR"/patch/tmp_output.o "$TEMPDIR"/patch/output.o || die
-	# Avoid MODPOST warning (pre-v5.8) and error (v5.8+) with an empty .cmd file
-	touch "$TEMPDIR"/patch/.output.o.cmd || die
-else
-	# Add .kpatch.checksum for kpatch script
-	md5sum ../patch/tmp_output.o | awk '{printf "%s\0", $1}' > checksum.tmp || die
-	"$OBJCOPY" --add-section .kpatch.checksum=checksum.tmp --set-section-flags .kpatch.checksum=alloc,load,contents,readonly  ../patch/tmp_output.o || die
-	rm -f checksum.tmp
-	"$TOOLSDIR"/create-kpatch-module "$TEMPDIR"/patch/tmp_output.o "$TEMPDIR"/patch/output.o 2>&1 | logger 1
-	check_pipe_status create-kpatch-module
-	[[ "$rc" -ne 0 ]] && die "create-kpatch-module: exited with return code: $rc"
-fi
+"$LD" -r $KPATCH_LDFLAGS -o ../patch/output.o $(find . -name "*.o") 2>&1 | logger || die
+# Avoid MODPOST warning (pre-v5.8) and error (v5.8+) with an empty .cmd file
+touch "$TEMPDIR"/patch/.output.o.cmd || die
 
 cd "$TEMPDIR/patch" || die
 
@@ -1417,22 +1360,19 @@ for ((idx=0; idx<${#MAKEVARS[@]}; idx++)); do
 done
 
 export KPATCH_BUILD="$KERNEL_SRCDIR" KPATCH_NAME="$MODNAME" \
-KBUILD_EXTRA_SYMBOLS="$KBUILD_EXTRA_SYMBOLS" \
 KPATCH_LDFLAGS="$KPATCH_LDFLAGS" \
 CROSS_COMPILE="$CROSS_COMPILE"
 save_env
 
 make "${MAKEVARS[@]}" 2>&1 | logger || die
 
-if [[ "$USE_KLP" -eq 1 ]]; then
-	if [[ "$USE_KLP_ARCH" -eq 0 ]]; then
-		extra_flags="--no-klp-arch-sections"
-	fi
-	cp -f "$TEMPDIR/patch/$MODNAME.ko" "$TEMPDIR/patch/tmp.ko" || die
-	"$TOOLSDIR"/create-klp-module $extra_flags "$TEMPDIR/patch/tmp.ko" "$TEMPDIR/patch/$MODNAME.ko" 2>&1 | logger 1
-	check_pipe_status create-klp-module
-	[[ "$rc" -ne 0 ]] && die "create-klp-module: exited with return code: $rc"
+if [[ "$USE_KLP_ARCH" -eq 0 ]]; then
+	extra_flags="--no-klp-arch-sections"
 fi
+cp -f "$TEMPDIR/patch/$MODNAME.ko" "$TEMPDIR/patch/tmp.ko" || die
+"$TOOLSDIR"/create-klp-module $extra_flags "$TEMPDIR/patch/tmp.ko" "$TEMPDIR/patch/$MODNAME.ko" 2>&1 | logger 1
+check_pipe_status create-klp-module
+[[ "$rc" -ne 0 ]] && die "create-klp-module: exited with return code: $rc"
 
 if [[ -n "$CONFIG_MODVERSIONS" ]]; then
     # Check that final module does not reference symbols with different version
@@ -1461,17 +1401,6 @@ fi
 	sed -r 's/\s+\[<localentry>: 8\]//' | \
 	awk '($4=="FUNC" || $4=="OBJECT") && ($5=="GLOBAL" || $5=="WEAK") && $7!="UND" {print $NF}' \
 	>"${TEMPDIR}"/new_symbols
-
-if [[ "$USE_KLP" -eq 0 ]]; then
-	cat >>"${TEMPDIR}"/new_symbols <<-EOF
-		kpatch_shadow_free
-		kpatch_shadow_alloc
-		kpatch_register
-		kpatch_shadow_get
-		kpatch_unregister
-		kpatch_root_kobj
-	EOF
-fi
 
 # Compare undefined_references and new_symbols files and print only the first
 # column containing lines unique to first file.
