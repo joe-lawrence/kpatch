@@ -32,17 +32,6 @@ struct kpatch_patch_func {
 	char *objname;
 };
 
-struct kpatch_patch_dynrela {
-	unsigned long dest;
-	unsigned long src;
-	unsigned long type;
-	unsigned long sympos;
-	char *name;
-	char *objname;
-	int external;
-	long addend;
-};
-
 struct kpatch_pre_patch_callback {
 	int (*callback)(void *obj);
 	char *objname;

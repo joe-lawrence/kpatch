@@ -35,11 +35,6 @@
 #define UTS_UBUNTU_RELEASE_ABI 0
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) ||			\
-    defined(RHEL_RELEASE_CODE)
-#define HAVE_ELF_RELOCS
-#endif
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) ||			\
     (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) &&			\
       UTS_UBUNTU_RELEASE_ABI >= 7) ||					\
@@ -120,21 +115,18 @@ static int patch_objects_nr;
  * struct patch_object - scaffolding structure tracking patch target objects
  * @list:	list of patch_object (threaded onto patch_objects)
  * @funcs:	list of patch_func associated with this object
- * @relocs:	list of patch_reloc associated with this object
  * @callbacks:	kernel struct of object callbacks
  * @name:	patch target object name (NULL for vmlinux)
  * @funcs_nr:	count of kpatch_patch_func added to @funcs
- * @relocs_nr:	count of patch_reloc added to @relocs
  */
 struct patch_object {
 	struct list_head list;
 	struct list_head funcs;
-	struct list_head relocs;
 #ifdef HAVE_CALLBACKS
 	struct klp_callbacks callbacks;
 #endif
 	const char *name;
-	int funcs_nr, relocs_nr;
+	int funcs_nr;
 };
 
 /**
@@ -145,16 +137,6 @@ struct patch_object {
 struct patch_func {
 	struct list_head list;
 	struct kpatch_patch_func *kfunc;
-};
-
-/**
- * struct patch_reloc - scaffolding structure for kpatch_patch_dynrela
- * @list:	list of patch_reloc (threaded onto patch_object.relocs)
- * @kdynrela:	array of kpatch_patch_dynrela
- */
-struct patch_reloc {
-	struct list_head list;
-	struct kpatch_patch_dynrela *kdynrela;
 };
 
 /**
@@ -175,9 +157,6 @@ static struct patch_object *patch_alloc_new_object(const char *name)
 	if (!object)
 		return NULL;
 	INIT_LIST_HEAD(&object->funcs);
-#ifndef HAVE_ELF_RELOCS
-	INIT_LIST_HEAD(&object->relocs);
-#endif
 	if (strcmp(name, "vmlinux"))
 		object->name = name;
 	list_add(&object->list, &patch_objects);
@@ -238,49 +217,12 @@ static int patch_add_func_to_object(struct kpatch_patch_func *kfunc)
 	return 0;
 }
 
-#ifndef HAVE_ELF_RELOCS
-/**
- * patch_add_reloc_to_object() - create scaffolding from kpatch_patch_dynrela data
- *
- * @kdynrela:	Individual kpatch_patch_dynrela pointer
- *
- * Return: 0 on success, -ENOMEM on failure.
- *
- * Builds scaffolding data structures from .kpatch.dynrelas section's array
- * of kpatch_patch_dynrela structures.  Updates the associated
- * patch_object's relocs_nr count.
- */
-static int patch_add_reloc_to_object(struct kpatch_patch_dynrela *kdynrela)
-{
-	struct patch_reloc *reloc;
-	struct patch_object *object;
-
-	reloc = kzalloc(sizeof(*reloc), GFP_KERNEL);
-	if (!reloc)
-		return -ENOMEM;
-	INIT_LIST_HEAD(&reloc->list);
-	reloc->kdynrela = kdynrela;
-
-	object = patch_find_object_by_name(kdynrela->objname);
-	if (!object) {
-		kfree(reloc);
-		return -ENOMEM;
-	}
-	list_add(&reloc->list, &object->relocs);
-	object->relocs_nr++;
-	return 0;
-}
-#endif
-
 /**
  * patch_free_scaffold() - tear down the temporary kpatch scaffolding
  */
 static void patch_free_scaffold(void) {
 	struct patch_func *func, *safefunc;
 	struct patch_object *object, *safeobject;
-#ifndef HAVE_ELF_RELOCS
-	struct patch_reloc *reloc, *safereloc;
-#endif
 
 	list_for_each_entry_safe(object, safeobject, &patch_objects, list) {
 		list_for_each_entry_safe(func, safefunc,
@@ -288,13 +230,6 @@ static void patch_free_scaffold(void) {
 			list_del(&func->list);
 			kfree(func);
 		}
-#ifndef HAVE_ELF_RELOCS
-		list_for_each_entry_safe(reloc, safereloc,
-		                         &object->relocs, list) {
-			list_del(&reloc->list);
-			kfree(reloc);
-		}
-#endif
 		list_del(&object->list);
 		kfree(object);
 	}
@@ -311,10 +246,6 @@ static void patch_free_livepatch(struct klp_patch *patch)
 		for (object = patch->objs; object && object->funcs; object++) {
 			if (object->funcs)
 				kfree(object->funcs);
-#ifndef HAVE_ELF_RELOCS
-			if (object->relocs)
-				kfree(object->relocs);
-#endif
 		}
 		if (patch->objs)
 			kfree(patch->objs);
@@ -428,9 +359,6 @@ static inline int add_callbacks_to_patch_objects(void)
 
 /* Defined by kpatch.lds.S */
 extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
-#ifndef HAVE_ELF_RELOCS
-extern struct kpatch_patch_dynrela __kpatch_dynrelas[], __kpatch_dynrelas_end[];
-#endif
 
 static int __init patch_init(void)
 {
@@ -440,19 +368,13 @@ static int __init patch_init(void)
 	struct patch_object *object;
 	struct patch_func *func;
 	int ret = 0, i, j;
-#ifndef HAVE_ELF_RELOCS
-	struct kpatch_patch_dynrela *kdynrela;
-	struct patch_reloc *reloc;
-	struct klp_reloc *lrelocs, *lreloc;
-#endif
-
 
 	/*
 	 * Step 1 - read from output.o, create temporary scaffolding
 	 * data-structures
 	 */
 
-	/* organize functions and relocs by object in scaffold */
+	/* organize functions by object in scaffold */
 	for (kfunc = __kpatch_funcs;
 	     kfunc != __kpatch_funcs_end;
 	     kfunc++) {
@@ -460,16 +382,6 @@ static int __init patch_init(void)
 		if (ret)
 			goto out;
 	}
-
-#ifndef HAVE_ELF_RELOCS
-	for (kdynrela = __kpatch_dynrelas;
-	     kdynrela != __kpatch_dynrelas_end;
-	     kdynrela++) {
-		ret = patch_add_reloc_to_object(kdynrela);
-		if (ret)
-			goto out;
-	}
-#endif
 
 	ret = add_callbacks_to_patch_objects();
 	if (ret)
@@ -527,29 +439,6 @@ static int __init patch_init(void)
 #endif
 			j++;
 		}
-
-#ifndef HAVE_ELF_RELOCS
-		lrelocs = kzalloc(sizeof(struct klp_reloc) *
-				  (object->relocs_nr+1), GFP_KERNEL);
-		if (!lrelocs)
-			goto out;
-		lobject->relocs = lrelocs;
-		j = 0;
-		list_for_each_entry(reloc, &object->relocs, list) {
-			lreloc = &lrelocs[j];
-			lreloc->loc = reloc->kdynrela->dest;
-#ifdef HAVE_SYMPOS
-			lreloc->sympos = reloc->kdynrela->sympos;
-#else
-			lreloc->val = reloc->kdynrela->src;
-#endif /* HAVE_SYMPOS */
-			lreloc->type = reloc->kdynrela->type;
-			lreloc->name = reloc->kdynrela->name;
-			lreloc->addend = reloc->kdynrela->addend;
-			lreloc->external = reloc->kdynrela->external;
-			j++;
-		}
-#endif /* HAVE_ELF_RELOCS */
 
 #ifdef HAVE_CALLBACKS
 		lobject->callbacks = object->callbacks;

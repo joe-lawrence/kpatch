@@ -157,7 +157,7 @@ The primary steps in kpatch-build are:
 	* Add `.kpatch.funcs` and `.rela.kpatch.funcs` sections to the output object.
 	The kpatch core module uses this to determine the list of functions
 	that need to be redirected using ftrace.
-	* Add `.kpatch.dynrelas` and `.rela.kpatch.dynrelas` sections to the output object.
+	* Add `.kpatch.relocations` and `.rela.kpatch.relocations` sections to the output object.
 	This will be used to resolve references to non-included local
 	and non-exported global symbols. These relocations will be resolved by the kpatch core module.
 	* Generate the resulting output object containing the new and modified sections

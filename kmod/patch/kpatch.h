@@ -49,22 +49,10 @@ struct kpatch_func {
 	struct kobject kobj;
 };
 
-struct kpatch_dynrela {
-	unsigned long dest;
-	unsigned long src;
-	unsigned long type;
-	unsigned long sympos;
-	const char *name;
-	int addend;
-	int external;
-	struct list_head list;
-};
-
 struct kpatch_object {
 	struct list_head list;
 	const char *name;
 	struct list_head funcs;
-	struct list_head dynrelas;
 
 	int (*pre_patch_callback)(struct kpatch_object *);
 	void (*post_patch_callback)(struct kpatch_object *);
