@@ -65,6 +65,18 @@ LLD="${CROSS_COMPILE:-}ld.lld"
 READELF="${CROSS_COMPILE:-}readelf"
 OBJCOPY="${CROSS_COMPILE:-}objcopy"
 
+declare -rA SUPPORTED_DEB_DISTROS=(
+	["debian"]="Debian OS"
+	["ubuntu"]="Ubuntu OS")
+
+declare -rA SUPPORTED_RPM_DISTROS=(
+	["centos"]="CentOS"
+	["fedora"]="Fedora"
+	["openEuler"]="OpenEuler"
+	["ol"]="Oracle"
+	["photon"]="Photon OS"
+	["rhel"]="RHEL")
+
 warn() {
 	echo "ERROR: $1" >&2
 }
@@ -649,6 +661,14 @@ module_name_string() {
 	echo "${1//[^a-zA-Z0-9_-]/-}" | cut -c 1-55
 }
 
+is_supported_deb_distro() {
+	[[ -v "SUPPORTED_DEB_DISTROS[$1]" ]]
+}
+
+is_supported_rpm_distro() {
+	[[ -v "SUPPORTED_RPM_DISTROS[$1]" ]]
+}
+
 usage() {
 	echo "usage: $(basename "$0") [options] <patch1 ... patchN>" >&2
 	echo "		patchN                  Input patchfile(s)" >&2
@@ -869,16 +889,14 @@ fi
 
 [[ -z "$TARGETS" ]] && TARGETS="vmlinux modules"
 
-if [[ "$DISTRO" = fedora ]] || [[ "$DISTRO" = rhel ]] || [[ "$DISTRO" = ol ]] ||
-   [[ "$DISTRO" = centos ]] || [[ "$DISTRO" = openEuler ]] ||
-   [[ "$DISTRO" = photon ]]; then
+if is_supported_rpm_distro "$DISTRO"; then
 
 	[[ -z "$VMLINUX" ]] && VMLINUX="/usr/lib/debug/lib/modules/$ARCHVERSION/vmlinux"
 	[[ -e "$VMLINUX" ]] || die "kernel-debuginfo-$ARCHVERSION not installed"
 
 	export PATH="/usr/lib64/ccache:$PATH"
 
-elif [[ "$DISTRO" = ubuntu ]] || [[ "$DISTRO" = debian ]]; then
+elif is_supported_deb_distro "$DISTRO"; then
 	[[ -z "$VMLINUX" ]] && VMLINUX="/usr/lib/debug/boot/vmlinux-$ARCHVERSION"
 
 	if [[ "$DISTRO" = ubuntu ]]; then
@@ -910,14 +928,8 @@ elif [[ -e "$KERNEL_SRCDIR"/.config ]] && [[ -e "$VERSIONFILE" ]] && [[ "$(cat "
 	echo "Using cache at $KERNEL_SRCDIR"
 
 else
-	if [[ "$DISTRO" = fedora ]] || [[ "$DISTRO" = rhel ]] || [[ "$DISTRO" = ol ]] || [[ "$DISTRO" = centos ]] || [[ "$DISTRO" = openEuler ]] || [[ "$DISTRO" = photon ]]; then
-
-		[[ "$DISTRO" = fedora ]] && echo "Fedora distribution detected"
-		[[ "$DISTRO" = rhel ]] && echo "RHEL distribution detected"
-		[[ "$DISTRO" = ol ]] && echo "Oracle Linux distribution detected"
-		[[ "$DISTRO" = centos ]] && echo "CentOS distribution detected"
-		[[ "$DISTRO" = openEuler ]] && echo "OpenEuler distribution detected"
-		[[ "$DISTRO" = photon ]] && echo "Photon OS distribution detected"
+	if is_supported_rpm_distro "$DISTRO"; then
+		echo "${SUPPORTED_RPM_DISTROS[$DISTRO]} distribution detected"
 
 		clean_cache
 
@@ -1013,9 +1025,9 @@ else
 
 		(cd "$KERNEL_SRCDIR" && make mrproper 2>&1 | logger) || die
 
-	elif [[ "$DISTRO" = ubuntu ]] || [[ "$DISTRO" = debian ]]; then
+	elif is_supported_deb_distro "$DISTRO"; then
 
-		echo "Debian/Ubuntu distribution detected"
+		echo "${SUPPORTED_DEB_DISTROS[$DISTRO]} distribution detected"
 
 		if [[ "$DISTRO" = ubuntu ]]; then
 
