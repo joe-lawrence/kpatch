@@ -358,6 +358,8 @@ find_special_section_data() {
 			check[a]=true					# alt_instr
 			kernel_version_gte 5.10.0 && check[s]=true	# static_call_site
 			[[ -n "$CONFIG_PARAVIRT" ]] && check[p]=true	# paravirt_patch_site
+
+			[[ -n "$CONFIG_PARAVIRT" ]] && export PARA_STRUCT_SIZE=0	# TEMP HACK
 			;;
 		"ppc64le")
 			check[f]=true					# fixup_entry
