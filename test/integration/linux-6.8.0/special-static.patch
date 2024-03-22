@@ -1,10 +1,19 @@
 diff -Nupr src.orig/kernel/fork.c src/kernel/fork.c
 --- src.orig/kernel/fork.c	2024-03-20 15:15:20.937896039 -0400
 +++ src/kernel/fork.c	2024-03-20 15:16:35.417464653 -0400
-@@ -1845,10 +1845,18 @@ static void posix_cpu_timers_init_group(
+@@ -1845,10 +1845,27 @@ static void posix_cpu_timers_init_group(
  	posix_cputimers_group_init(pct, cpu_limit);
  }
  
++#ifdef __s390x__
++#include "kpatch-macros.h"
++/*
++ * HACK: s390x may rearrange fork_idle() instructions, causing unrelated
++ * changes to .init.text :(
++ */
++KPATCH_IGNORE_SECTION(".init.text");
++#endif
++
 +void kpatch_foo(void)
 +{
 +	if (!jiffies)
