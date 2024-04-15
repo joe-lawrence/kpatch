@@ -1691,7 +1691,7 @@ static void kpatch_check_func_profiling_calls(struct kpatch_elf *kelf)
 
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		if (sym->type != STT_FUNC || sym->status != CHANGED ||
-		    (sym->parent && sym->parent->status == CHANGED))
+		    (sym->is_pfx || (sym->parent && sym->parent->status == CHANGED)))
 			continue;
 		if (!sym->twin->has_func_profiling) {
 			log_normal("function %s has no fentry/mcount call, unable to patch\n",
@@ -3128,7 +3128,7 @@ static void kpatch_create_patches_sections(struct kpatch_elf *kelf,
 	nr = 0;
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		if (sym->type != STT_FUNC || sym->status != CHANGED ||
-		    sym->parent)
+		    sym->parent || sym->is_pfx)
 			continue;
 		nr++;
 	}
@@ -3150,7 +3150,7 @@ static void kpatch_create_patches_sections(struct kpatch_elf *kelf,
 	index = 0;
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		if (sym->type != STT_FUNC || sym->status != CHANGED ||
-		    sym->parent)
+		    sym->parent || sym->is_pfx)
 			continue;
 
 		if (!lookup_symbol(table, sym, &symbol))
