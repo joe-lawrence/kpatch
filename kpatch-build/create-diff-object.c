@@ -3724,8 +3724,14 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 					break;
 				}
 
-			if (!found)
-				ERROR("%s: unexpected missing call to _mcount()", __func__);
+			if (!found) {
+				/*
+				 * Assume compiler-generated nops, one
+				 * less mcount rela needed
+				 */
+				nr--;
+				continue;
+			}
 
 			insn_offset = rela->offset;
 			break;
@@ -3964,6 +3970,27 @@ static void kpatch_find_func_profiling_calls(struct kpatch_elf *kelf)
 					break;
 				}
 			}
+
+			/*
+			 * Check for compiler generated fentry nops:
+			 * 0000000000000008 <cmdline_proc_show>:
+			 *    8:	f8 ff 4c e8 	ld      r2,-8(r12)
+			 * 			8: R_PPC64_ENTRY	*ABS*
+			 *    c:	14 62 42 7c 	add     r2,r2,r12
+			 *   10:	00 00 00 60 	nop
+			 *   14:	00 00 00 60 	nop
+			 */
+			if (!sym->has_func_profiling) {
+				insn = sym->sec->data->d_buf + sym->sym.st_value;
+				if (insn[8]  == 0x00 && insn[9]  == 0x00 &&
+				    insn[10] == 0x00 && insn[11] == 0x60 &&
+				    insn[12] == 0x00 && insn[13] == 0x00 &&
+				    insn[14] == 0x00 && insn[15] == 0x60) {
+					sym->has_func_profiling = 1;
+					break;
+				}
+			}
+
 			break;
 		case X86_64:
 			rela = list_first_entry(&sym->sec->rela->relas, struct rela,
