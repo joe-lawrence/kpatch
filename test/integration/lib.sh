@@ -40,11 +40,11 @@ kpatch_rhel_dependencies()
 {
 	local kernel_version
 	local arch
-	local rhel_major
+###	local rhel_major
 	local yum_utils_version
 	kernel_version=$(uname -r)
 	arch=$(uname -m)
-	rhel_major=${VERSION_ID%%.*}
+###	rhel_major=${VERSION_ID%%.*}
 
 	# kpatch-build dependencies
 	sudo yum install -y \
@@ -69,14 +69,16 @@ kpatch_rhel_dependencies()
 	fi
 	[[ "$arch" == "x86_64" ]] && sudo yum install -y pesign
 
-	# ccache
-	if ! command -v ccache &> /dev/null; then
-		if ! sudo yum install -y ccache; then
-			sudo yum install -y "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${rhel_major}.noarch.rpm" && \
-			sudo yum install -y ccache && \
-			sudo yum remove -y epel-release
-		fi
-	fi
+	yum install -y pahole
+
+###	# ccache
+###	if ! command -v ccache &> /dev/null; then
+###		if ! sudo yum install -y ccache; then
+###			sudo yum install -y "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${rhel_major}.noarch.rpm" && \
+###			sudo yum install -y ccache && \
+###			sudo yum remove -y epel-release
+###		fi
+###	fi
 }
 
 kpatch_centos_dependencies()
