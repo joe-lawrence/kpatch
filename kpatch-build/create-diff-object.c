@@ -3839,11 +3839,11 @@ static void kpatch_create_pfe_sections(struct kpatch_elf *kelf)
 			if (insn[0] == 0xf3 && insn[1] == 0x0f && insn[2] == 0x1e && insn[3] == 0xfa)
 				insn+=4;
 
-			/* verify call instruction (assume __fentry__) */
-			if (insn[0] != 0xe8 || insn[1] != 0x00 || insn[2] != 0x00 || insn[3] != 0x00 || insn[4] != 0x00) {
-				ERROR("%s: unexpected instruction in patch section of function\n", sym->name);
-			}
-
+			/*
+			 * We can't verify the ftrace call site as x86_64 adds nops (and
+			 * rela__patchable_function_entries) regardless of whether it is ftrace-able or not.
+			 * This arch still relies on __mcount_loc section, so we will check then.
+			 */
 			break;
 		default:
 			ERROR("unsupported arch");
@@ -4011,7 +4011,9 @@ static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool
 {
 	if (create_pfe)
 		kpatch_create_pfe_sections(kelf);
-	else
+
+	/* x86 is special, it always creates mcount_loc section */
+	if (!create_pfe || kelf->arch == X86_64)
 		kpatch_create_mcount_sections(kelf);
 }
 
@@ -4208,9 +4210,11 @@ static void kpatch_find_func_profiling_calls(struct kpatch_elf *kelf)
 			}
 			break;
 		case X86_64:
-			if (kpatch_symbol_has_pfe_entry(kelf, sym)) {
-				sym->has_func_profiling = 1;
-			} else if (sym->sec->rela) {
+			/*
+			 * x86_64 still uses __entry__, cannot rely on
+			 * pfe to indicate ftrace call site
+			 */
+			if (sym->sec->rela) {
 				rela = list_first_entry(&sym->sec->rela->relas, struct rela,
 							list);
 				if ((rela->type != R_X86_64_NONE &&
