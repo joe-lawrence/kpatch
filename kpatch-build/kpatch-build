@@ -210,6 +210,36 @@ restore_kernel_files() {
 	done
 }
 
+create_bug_report_tarball()
+{
+	declare -a tmp_files
+	declare -a generated_files
+
+	tmp_files=( "changed_objs" \
+		    "Module.symvers" \
+		    "new_symbols" \
+		    "orig/" \
+		    "output/" \
+		    "patch/" \
+		    "patched/" \
+		    "undefined_references" \
+		    "vmlinux.symtab" )
+
+	for file in "${tmp_files[@]}"; do
+		[[ -e "$TEMPDIR/$file" ]] && generated_files+=( "$TEMPDIR/$file" )
+	done
+
+	echo "Creating bug report tarball ..."
+	tar -czvf "${BASE}/repro.tar.gz" \
+		"${PATCH_LIST[@]}" \
+		"$RELEASE_FILE" \
+		"$LOGFILE" \
+		"$ENVFILE" \
+		"$VMLINUX" \
+		"$CONFIGFILE" \
+		"${generated_files[@]}"
+}
+
 cleanup() {
 	rm -f "$BUILDDIR/.scmversion"
 
@@ -220,6 +250,11 @@ cleanup() {
 	rm -rf "$RPMTOPDIR"
 	unset KCFLAGS
 	unset KCPPFLAGS
+}
+
+exit_trap() {
+	[[ "$BUG_REPORT" -ne 0 ]] && create_bug_report_tarball
+	[[ "$SKIPCLEANUP" -ne 0 ]] && cleanup
 }
 
 clean_cache() {
@@ -733,13 +768,14 @@ usage() {
 	echo "		--skip-cleanup          Skip post-build cleanup" >&2
 	echo "		--skip-compiler-check   Skip compiler version matching check" >&2
 	echo "		                        (not recommended)" >&2
+	echo "		--create-bug-report     Create a bug report tarball" >&2
 }
 
 if ! command -v gawk &> /dev/null; then
 	die "gawk not installed"
 fi
 
-options="$(getopt -o ha:r:s:c:v:j:t:n:o:dR -l "help,archversion:,sourcerpm:,sourcedir:,config:,vmlinux:,jobs:,target:,name:,output:,oot-module:,oot-module-src:,debug,skip-gcc-check,skip-compiler-check,skip-cleanup,non-replace" -- "$@")" || die "getopt failed"
+options="$(getopt -o ha:r:s:c:v:j:t:n:o:dR -l "help,archversion:,sourcerpm:,sourcedir:,config:,vmlinux:,jobs:,target:,name:,output:,oot-module:,oot-module-src:,debug,skip-gcc-check,skip-compiler-check,skip-cleanup,non-replace,create-bug-report" -- "$@")" || die "getopt failed"
 
 eval set -- "$options"
 
@@ -821,6 +857,9 @@ while [[ $# -gt 0 ]]; do
 		echo "WARNING: Skipping compiler version matching check (not recommended)"
 		SKIPCOMPILERCHECK=1
 		;;
+	--create-bug-report)
+		BUG_REPORT=1
+		;;
 	*)
 		[[ "$1" = "--" ]] && shift && continue
 		[[ ! -f "$1" ]] && die "patch file '$1' not found"
@@ -894,7 +933,7 @@ else
 	BUILDDIR="$KERNEL_SRCDIR"
 fi
 
-[[ "$SKIPCLEANUP" -eq 0 ]] && trap cleanup EXIT INT TERM HUP
+trap exit_trap EXIT INT TERM HUP
 
 # Don't check external file.
 # shellcheck disable=SC1090
