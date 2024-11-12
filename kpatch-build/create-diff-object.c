@@ -3851,7 +3851,7 @@ static void kpatch_create_pfe_sections(struct kpatch_elf *kelf)
 
 		/* Allocate __patchable_function_entries for symbol */
 		sec = create_section_pair(kelf, "__patchable_function_entries", sizeof(void *), 1);
-		sec->sh.sh_flags |= SHF_WRITE | SHF_LINK_ORDER;
+		sec->sh.sh_flags |= SHF_WRITE | SHF_ALLOC | SHF_LINK_ORDER;
 		/* We will reset this sh_link in the reindex function. */
 		sec->sh.sh_link = 0;
 
