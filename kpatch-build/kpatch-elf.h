@@ -65,6 +65,7 @@ struct section {
 			struct symbol *secsym, *sym;
 		};
 	};
+	struct section *pfe; /* per-function __patchable_function_entries */
 };
 
 enum symbol_strip {
@@ -125,6 +126,7 @@ struct kpatch_elf {
 	struct list_head strings;
 	Elf_Data *symtab_shndx;
 	int fd;
+	bool has_pfe;
 };
 
 /*******************
