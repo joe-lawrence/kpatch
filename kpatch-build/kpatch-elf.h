@@ -65,7 +65,7 @@ struct section {
 			struct symbol *secsym, *sym;
 		};
 	};
-	struct section *pfe; /* per-function __patchable_function_entries */
+	struct section *pfe;
 };
 
 enum symbol_strip {

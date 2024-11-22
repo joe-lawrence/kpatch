@@ -3682,9 +3682,9 @@ static void kpatch_create_callbacks_objname_rela(struct kpatch_elf *kelf, char *
 }
 
 /*
- * Associate __patchable_function_entries relas with their particular
- * __patchable_function_entries section (as there may be multiple pfe
- * sections.
+ * Create links between text sections and their corresponding
+ * __patchable_function_entries sections (as there may be multiple pfe
+ * sections).
  */
 static void kpatch_set_pfe_link(struct kpatch_elf *kelf)
 {
@@ -3695,16 +3695,14 @@ static void kpatch_set_pfe_link(struct kpatch_elf *kelf)
 		return;
 
 	list_for_each_entry(sec, &kelf->sections, list) {
-		if (strcmp(sec->name, "__patchable_function_entries")) {
+		if (strcmp(sec->name, "__patchable_function_entries"))
 			continue;
-		}
 
-		if (!sec->rela) {
+		if (!sec->rela)
 			continue;
-		}
-		list_for_each_entry(rela, &sec->rela->relas, list) {
+
+		list_for_each_entry(rela, &sec->rela->relas, list)
 			rela->sym->sec->pfe = sec;
-		}
 	}
 }
 
@@ -3809,13 +3807,11 @@ static void kpatch_create_pfe_sections(struct kpatch_elf *kelf)
 		 * Create a .rela__patchable_function_entries entry which also points to it.
 		 */
 		ALLOC_LINK(pfe_rela, &relasec->relas);
-		struct symbol *section_sym;
 
 		/* __patchable_function_entries relocates off the section symbol */
-		section_sym = find_symbol_by_name(&kelf->symbols, sym->sec->name);
-		pfe_rela->sym = section_sym;
+		pfe_rela->sym = sym->sec->sym;
 		pfe_rela->type = absolute_rela_type(kelf);
-		pfe_rela->addend = insn_offset - section_sym->sym.st_value;
+		pfe_rela->addend = insn_offset - sym->sec->sym->sym.st_value;
 		pfe_rela->offset = 0;
 
 		index++;
@@ -3954,13 +3950,7 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 
 static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool has_pfe)
 {
-	/*
-	 * If the patched ELF file has patchable_function_entries,
-	 * create those sections in the output ELF -- unless it's
-	 * x86_64, where their presence is only a side effect of
-	 * the build.
-	 */
-	if (has_pfe && kelf->arch != X86_64)
+	if (has_pfe)
 		kpatch_create_pfe_sections(kelf);
 	else
 		kpatch_create_mcount_sections(kelf);
@@ -4159,10 +4149,6 @@ static void kpatch_find_func_profiling_calls(struct kpatch_elf *kelf)
 			}
 			break;
 		case X86_64:
-			/*
-			 * x86_64 still uses __fentry__, cannot rely on
-			 * pfe to indicate ftrace call site
-			 */
 			if (sym->sec->rela) {
 				rela = list_first_entry(&sym->sec->rela->relas, struct rela,
 							list);
@@ -4176,17 +4162,12 @@ static void kpatch_find_func_profiling_calls(struct kpatch_elf *kelf)
 			}
 			break;
 		case S390:
-			if (kpatch_symbol_has_pfe_entry(kelf, sym)) {
-				ERROR("unsupported arch");
-			} else if (sym->sec->rela) {
-
-				/* Check for compiler generated fentry nop - jgnop 0 */
-				insn = sym->sec->data->d_buf;
-				if (insn[0] == 0xc0 && insn[1] == 0x04 &&
-					insn[2] == 0x00 && insn[3] == 0x00 &&
-					insn[4] == 0x00 && insn[5] == 0x00)
-					sym->has_func_profiling = 1;
-			}
+			/* Check for compiler generated fentry nop - jgnop 0 */
+			insn = sym->sec->data->d_buf;
+			if (insn[0] == 0xc0 && insn[1] == 0x04 &&
+				insn[2] == 0x00 && insn[3] == 0x00 &&
+				insn[4] == 0x00 && insn[5] == 0x00)
+				sym->has_func_profiling = 1;
 			break;
 		default:
 			ERROR("unsupported arch");

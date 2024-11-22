@@ -608,8 +608,15 @@ struct kpatch_elf *kpatch_elf_open(const char *name)
 		kpatch_create_rela_list(kelf, relasec);
 	}
 
-	if (find_section_by_name(&kelf->sections, "__patchable_function_entries"))
-		kelf->has_pfe = true;
+	/*
+	 * x86_64's pfe sections are only a side effect
+	 * CONFIG_CALL_PADDING building with * -fpatchable-function-entry=16,16,
+	 * These sections aren't used by ftrace on this arch, set do not
+	 * bother reading/writing them for x86_64.
+	 */
+	if (kelf->arch != X86_64)
+		if (find_section_by_name(&kelf->sections, "__patchable_function_entries"))
+			kelf->has_pfe = true;
 
 	return kelf;
 }
@@ -986,13 +993,8 @@ void kpatch_reindex_elements(struct kpatch_elf *kelf)
 		sym->index = index++;
 		if (sym->sec) {
 			sym->sym.st_shndx = (unsigned short)sym->sec->index;
-			if (sym->sec->pfe) {
-				sym->sec->pfe->sh.sh_link = sym->sec->index;
-				if (sym->sec->pfe->rela)
-					sym->sec->pfe->rela->sh.sh_info = sym->sec->index;
-			}
 		} else if (sym->sym.st_shndx != SHN_ABS &&
-			 sym->sym.st_shndx != SHN_LIVEPATCH) {
+			   sym->sym.st_shndx != SHN_LIVEPATCH) {
 			sym->sym.st_shndx = SHN_UNDEF;
 		}
 	}
