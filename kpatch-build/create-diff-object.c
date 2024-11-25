@@ -3716,7 +3716,7 @@ static void kpatch_set_pfe_link(struct kpatch_elf *kelf)
 static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool has_pfe)
 {
 	int nr, index;
-	struct section *sec;
+	struct section *sec = NULL;
 	struct symbol *sym, *rela_sym;
 	struct rela *rela;
 	void **funcs;
@@ -3779,8 +3779,8 @@ static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool
 					ERROR("%s: unexpected missing call to _mcount()", __func__);
 
 				insn_offset = rela->offset;
-				break;
 			}
+			break;
 		}
 		case X86_64: {
 			unsigned char *insn;
