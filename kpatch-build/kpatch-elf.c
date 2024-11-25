@@ -611,7 +611,7 @@ struct kpatch_elf *kpatch_elf_open(const char *name)
 	/*
 	 * x86_64's pfe sections are only a side effect
 	 * CONFIG_CALL_PADDING building with * -fpatchable-function-entry=16,16,
-	 * These sections aren't used by ftrace on this arch, set do not
+	 * These sections aren't used by ftrace on this arch, so do not
 	 * bother reading/writing them for x86_64.
 	 */
 	if (kelf->arch != X86_64)
@@ -991,12 +991,11 @@ void kpatch_reindex_elements(struct kpatch_elf *kelf)
 	index = 0;
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		sym->index = index++;
-		if (sym->sec) {
+		if (sym->sec)
 			sym->sym.st_shndx = (unsigned short)sym->sec->index;
-		} else if (sym->sym.st_shndx != SHN_ABS &&
-			   sym->sym.st_shndx != SHN_LIVEPATCH) {
+		else if (sym->sym.st_shndx != SHN_ABS &&
+			 sym->sym.st_shndx != SHN_LIVEPATCH)
 			sym->sym.st_shndx = SHN_UNDEF;
-		}
 	}
 }
 

@@ -3706,122 +3706,6 @@ static void kpatch_set_pfe_link(struct kpatch_elf *kelf)
 	}
 }
 
-static void kpatch_create_pfe_sections(struct kpatch_elf *kelf)
-{
-	int nr, index;
-	struct symbol *sym;
-
-	nr = 0;
-	list_for_each_entry(sym, &kelf->symbols, list)
-		if (sym->type == STT_FUNC && sym->status != SAME &&
-		    sym->has_func_profiling)
-			nr++;
-
-	/*
-	 * We will create separate __patchable_function_entries
-	 * sections for each symbols.
-	 */
-	kelf->has_pfe = true;
-
-	/* populate sections */
-	index = 0;
-	list_for_each_entry(sym, &kelf->symbols, list) {
-		struct section *sec, *relasec;
-		struct rela *pfe_rela;
-		unsigned long insn_offset = 0;
-		unsigned char *insn;
-
-		if (sym->type != STT_FUNC || sym->status == SAME)
-			continue;
-
-		if (!sym->has_func_profiling) {
-			log_debug("function %s doesn't have patchable function entry, no __patchable_function_entries record is needed\n",
-				  sym->name);
-			continue;
-		}
-
-		switch(kelf->arch) {
-		case PPC64:
-			/*
-			 * Assume ppc64le is built with -fpatchable-function-entry=2, which means that all 2 nops are
-			 * after the (local) entry point of the function.
-			 *
-			 * Example 1 - TOC setup for global entry
-			 * Disassembly of section .text.c_stop:
-			 *
-			 * 0000000000000000 <c_stop-0x8>:
-			 *         ...
-			 *                         0: R_PPC64_REL64        .TOC.-0x8
-			 *
-			 * 0000000000000008 <c_stop>:
-			 *    8:   f8 ff 4c e8     ld      r2,-8(r12)
-			 *                         8: R_PPC64_ENTRY        *ABS*
-			 *    c:   14 62 42 7c     add     r2,r2,r12
-			 *   10:   00 00 00 60     nop                                   << <<
-			 *   14:   00 00 00 60     nop
-			 *
-			 * Relocation section '.rela__patchable_function_entries' at offset 0x17870 contains 1 entry:
-			 *     Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
-			 * 0000000000000000  0000001100000026 R_PPC64_ADDR64         0000000000000000 .text.c_stop + 10
-			 *                                                                                           ^^
-			 *
-			 * Example 2 - no TOC setup, local entry only
-			 * Disassembly of section .text.c_stop:
-			 *
-			 * 0000000000000000 <c_stop>:
-			 *    0:   00 00 00 60     nop                                   << <<
-			 *    4:   00 00 00 60     nop
-			 *    8:   20 00 80 4e     blr
-			 *
-			 * Relocation section '.rela__patchable_function_entries' at offset 0x386a8 contains 1 entry:
-			 *     Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
-			 * 0000000000000000  0000001800000026 R_PPC64_ADDR64         0000000000000000 .text.c_stop + 0
-			 *                                                                                           ^
-			 */
-			insn_offset = sym->sym.st_value + PPC64_LOCAL_ENTRY_OFFSET(sym->sym.st_other);
-			insn = sym->sec->data->d_buf + insn_offset;
-
-			/* verify nops */
-			if (insn[0] != 0x00 || insn[1] != 0x00 || insn[2] != 0x00 || insn[3] != 0x60 ||
-			    insn[4] != 0x00 || insn[5] != 0x00 || insn[6] != 0x00 || insn[7] != 0x60) {
-				ERROR("%s: unexpected instruction in patch section of function\n", sym->name);
-			}
-
-			break;
-		default:
-			ERROR("unsupported arch");
-		}
-
-		/* Allocate __patchable_function_entries for symbol */
-		sec = create_section_pair(kelf, "__patchable_function_entries", sizeof(void *), 1);
-		sec->sh.sh_flags |= SHF_WRITE | SHF_ALLOC | SHF_LINK_ORDER;
-		/* We will reset this sh_link in the reindex function. */
-		sec->sh.sh_link = 0;
-
-		relasec = sec->rela;
-		sym->sec->pfe = sec;
-
-		/*
-		 * 'rela' points to the patchable function entry
-		 *
-		 * Create a .rela__patchable_function_entries entry which also points to it.
-		 */
-		ALLOC_LINK(pfe_rela, &relasec->relas);
-
-		/* __patchable_function_entries relocates off the section symbol */
-		pfe_rela->sym = sym->sec->sym;
-		pfe_rela->type = absolute_rela_type(kelf);
-		pfe_rela->addend = insn_offset - sym->sec->sym->sym.st_value;
-		pfe_rela->offset = 0;
-
-		index++;
-	}
-
-	/* sanity check, index should equal nr */
-	if (index != nr)
-		ERROR("size mismatch in funcs sections");
-}
-
 /*
  * This function basically reimplements the functionality of the Linux
  * recordmcount script, so that patched functions can be recognized by ftrace.
@@ -3829,14 +3713,15 @@ static void kpatch_create_pfe_sections(struct kpatch_elf *kelf)
  * TODO: Eventually we can modify recordmount so that it recognizes our bundled
  * sections as valid and does this work for us.
  */
-static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
+static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool has_pfe)
 {
 	int nr, index;
-	struct section *sec, *relasec;
-	struct symbol *sym;
-	struct rela *rela, *mcount_rela;
+	struct section *sec;
+	struct symbol *sym, *rela_sym;
+	struct rela *rela;
 	void **funcs;
 	unsigned long insn_offset = 0;
+	unsigned int rela_offset;
 
 	nr = 0;
 	list_for_each_entry(sym, &kelf->symbols, list)
@@ -3844,9 +3729,18 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 		    sym->has_func_profiling)
 			nr++;
 
-	/* create text/rela section pair */
-	sec = create_section_pair(kelf, "__mcount_loc", sizeof(void*), nr);
-	relasec = sec->rela;
+	if (has_pfe)
+		/*
+		 * Create separate __patchable_function_entries sections
+		 * for each function in the following loop.
+		 */
+		kelf->has_pfe = true;
+	else
+		/*
+		 * Create a single __mcount_loc section pair for all
+		 * functions.
+		 */
+		sec = create_section_pair(kelf, "__mcount_loc", sizeof(void*), nr);
 
 	/* populate sections */
 	index = 0;
@@ -3855,26 +3749,38 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 			continue;
 
 		if (!sym->has_func_profiling) {
-			log_debug("function %s has no fentry/mcount call, no mcount record is needed\n",
+			log_debug("function %s has no ftrace callsite, no __patchable_function_entries/mcount record is needed\n",
 				  sym->name);
 			continue;
 		}
 
 		switch(kelf->arch) {
 		case PPC64: {
-			bool found = false;
+			unsigned char *insn;
 
-			list_for_each_entry(rela, &sym->sec->rela->relas, list)
-				if (!strcmp(rela->sym->name, "_mcount")) {
-					found = true;
-					break;
-				}
+			if (kelf->has_pfe) {
+				insn_offset = sym->sym.st_value + PPC64_LOCAL_ENTRY_OFFSET(sym->sym.st_other);
+				insn = sym->sec->data->d_buf + insn_offset;
 
-			if (!found)
-				ERROR("%s: unexpected missing call to _mcount()", __func__);
+				/* verify nops */
+				if (insn[0] != 0x00 || insn[1] != 0x00 || insn[2] != 0x00 || insn[3] != 0x60 ||
+				    insn[4] != 0x00 || insn[5] != 0x00 || insn[6] != 0x00 || insn[7] != 0x60)
+					ERROR("%s: unexpected instruction in patch section of function\n", sym->name);
+			} else {
+				bool found = false;
 
-			insn_offset = rela->offset;
-			break;
+				list_for_each_entry(rela, &sym->sec->rela->relas, list)
+					if (!strcmp(rela->sym->name, "_mcount")) {
+						found = true;
+						break;
+					}
+
+				if (!found)
+					ERROR("%s: unexpected missing call to _mcount()", __func__);
+
+				insn_offset = rela->offset;
+				break;
+			}
 		}
 		case X86_64: {
 			unsigned char *insn;
@@ -3929,16 +3835,32 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 			ERROR("unsupported arch");
 		}
 
-		/*
-		 * 'rela' points to the mcount/fentry call.
-		 *
-		 * Create a .rela__mcount_loc entry which also points to it.
-		 */
-		ALLOC_LINK(mcount_rela, &relasec->relas);
-		mcount_rela->sym = sym;
-		mcount_rela->type = absolute_rela_type(kelf);
-		mcount_rela->addend = insn_offset - sym->sym.st_value;
-		mcount_rela->offset = (unsigned int) (index * sizeof(*funcs));
+		if (kelf->has_pfe) {
+			/*
+			 * Allocate a dedicated __patchable_function_entries for this function:
+			 *   - its .sh_link will be reset after reindexing
+			 *   - its lone rela is based on the section symbol
+			 */
+			sec = create_section_pair(kelf, "__patchable_function_entries", sizeof(void *), 1);
+			sec->sh.sh_flags |= SHF_WRITE | SHF_ALLOC | SHF_LINK_ORDER;
+			sec->sh.sh_link = 0;
+			sym->sec->pfe = sec;
+			rela_sym = sym->sec->sym;
+			rela_offset = 0;
+		} else {
+			/*
+			 * mcount relas are based on the function symbol and saved in a
+			 * single aggregate __mcount_loc section
+			 */
+			rela_sym = sym;
+			rela_offset = (unsigned int) (index * sizeof(*funcs));
+		}
+
+		ALLOC_LINK(rela, &sec->rela->relas);
+		rela->sym = rela_sym;
+		rela->type = absolute_rela_type(kelf);
+		rela->addend = insn_offset - rela->sym->sym.st_value;
+		rela->offset = rela_offset;
 
 		index++;
 	}
@@ -3946,14 +3868,6 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 	/* sanity check, index should equal nr */
 	if (index != nr)
 		ERROR("size mismatch in funcs sections");
-}
-
-static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool has_pfe)
-{
-	if (has_pfe)
-		kpatch_create_pfe_sections(kelf);
-	else
-		kpatch_create_mcount_sections(kelf);
 }
 
 /*
