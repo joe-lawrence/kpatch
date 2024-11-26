@@ -991,8 +991,11 @@ void kpatch_reindex_elements(struct kpatch_elf *kelf)
 	index = 0;
 	list_for_each_entry(sym, &kelf->symbols, list) {
 		sym->index = index++;
-		if (sym->sec)
+		if (sym->sec) {
 			sym->sym.st_shndx = (unsigned short)sym->sec->index;
+                        if (sym->sec->pfe)
+                                sym->sec->pfe->sh.sh_link = sym->sec->index;
+		}
 		else if (sym->sym.st_shndx != SHN_ABS &&
 			 sym->sym.st_shndx != SHN_LIVEPATCH)
 			sym->sym.st_shndx = SHN_UNDEF;

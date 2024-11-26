@@ -3838,12 +3838,11 @@ static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool
 		if (kelf->has_pfe) {
 			/*
 			 * Allocate a dedicated __patchable_function_entries for this function:
-			 *   - its .sh_link will be reset after reindexing
+			 *   - its .sh_link will be updated by kpatch_reindex_elements()
 			 *   - its lone rela is based on the section symbol
 			 */
 			sec = create_section_pair(kelf, "__patchable_function_entries", sizeof(void *), 1);
 			sec->sh.sh_flags |= SHF_WRITE | SHF_ALLOC | SHF_LINK_ORDER;
-			sec->sh.sh_link = 0;
 			sym->sec->pfe = sec;
 			rela_sym = sym->sec->sym;
 			rela_offset = 0;
