@@ -3702,7 +3702,7 @@ static void kpatch_set_pfe_link(struct kpatch_elf *kelf)
 			continue;
 
 		list_for_each_entry(rela, &sec->rela->relas, list)
-			rela->sym->sec->pfe = sec;
+			rela->sym->pfe = sec;
 	}
 }
 
@@ -3843,9 +3843,9 @@ static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool
 			 */
 			sec = create_section_pair(kelf, "__patchable_function_entries", sizeof(void *), 1);
 			sec->sh.sh_flags |= SHF_WRITE | SHF_ALLOC | SHF_LINK_ORDER;
-			sym->sec->pfe = sec;
 			rela_sym = sym->sec->secsym;
 			rela_offset = 0;
+			rela_sym->pfe = sec;
 		} else {
 			/*
 			 * mcount relas are based on the function symbol and saved in a
@@ -4023,13 +4023,12 @@ static bool kpatch_symbol_has_pfe_entry(struct kpatch_elf *kelf, struct symbol *
 	list_for_each_entry(sec, &kelf->sections, list) {
 		if (strcmp(sec->name, "__patchable_function_entries"))
 			continue;
-		if (sym->sec->pfe != sec)
-			continue;
 		if (!sec->rela)
 			continue;
 
 		list_for_each_entry(rela, &sec->rela->relas, list) {
-			if (rela->sym->sec && sym->sec == rela->sym->sec) {
+			if (rela->sym->sec && sym->sec == rela->sym->sec &&
+			    rela->sym->pfe == sec) {
 				return true;
 			}
 		}

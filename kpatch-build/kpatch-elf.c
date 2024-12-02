@@ -653,8 +653,10 @@ void kpatch_dump_kelf(struct kpatch_elf *kelf)
 				printf(", secsym-> %s", sec->secsym->name);
 			if (sec->rela)
 				printf(", rela-> %s", sec->rela->name);
+			if (sec->secsym && sec->secsym->pfe)
+				printf(", pfe-> [%d]",
+				       (sec->secsym->pfe) == NULL ? -1 : (int)sec->secsym->pfe->index);
 		}
-		printf(", pfe-> [%d]", (sec->pfe) == NULL ? -1 : (int)sec->pfe->index);
 next:
 		printf("\n");
 	}
@@ -993,8 +995,8 @@ void kpatch_reindex_elements(struct kpatch_elf *kelf)
 		sym->index = index++;
 		if (sym->sec) {
 			sym->sym.st_shndx = (unsigned short)sym->sec->index;
-                        if (sym->sec->pfe)
-                                sym->sec->pfe->sh.sh_link = sym->sec->index;
+                        if (sym->pfe)
+                                sym->pfe->sh.sh_link = sym->sec->index;
 		}
 		else if (sym->sym.st_shndx != SHN_ABS &&
 			 sym->sym.st_shndx != SHN_LIVEPATCH)

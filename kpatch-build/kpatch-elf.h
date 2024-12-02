@@ -65,7 +65,6 @@ struct section {
 			struct symbol *secsym, *sym;
 		};
 	};
-	struct section *pfe;
 };
 
 enum symbol_strip {
@@ -94,6 +93,7 @@ struct symbol {
 	};
 	int has_func_profiling;
 	bool is_pfx;
+	struct section *pfe;
 };
 
 struct rela {
