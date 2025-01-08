@@ -1,6 +1,6 @@
 diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
---- src.orig/fs/proc/meminfo.c	2024-10-29 16:38:25.977049348 -0400
-+++ src/fs/proc/meminfo.c	2024-10-29 16:38:27.236053014 -0400
+--- src.orig/fs/proc/meminfo.c	2025-01-08 16:18:07.835373430 -0500
++++ src/fs/proc/meminfo.c	2025-01-08 16:18:09.070379091 -0500
 @@ -31,6 +31,8 @@ static void show_val_kb(struct seq_file
  	seq_write(m, " kB\n", 4);
  }
@@ -10,7 +10,7 @@ diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
  static int meminfo_proc_show(struct seq_file *m, void *v)
  {
  	struct sysinfo i;
-@@ -168,6 +170,7 @@ static int meminfo_proc_show(struct seq_
+@@ -158,6 +160,7 @@ static int meminfo_proc_show(struct seq_
  	show_val_kb(m, "CmaFree:        ",
  		    global_zone_page_state(NR_FREE_CMA_PAGES));
  #endif
